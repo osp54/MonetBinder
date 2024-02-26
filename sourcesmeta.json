@@ -1,7 +1,7 @@
 [
   {
-    "name": "���",
-    "description": "��������� ��� ������ ��������������.",
-    "download_link": "https://raw.githubusercontent.com/osp54/osp54/MonetBinder/10e3acbd0e69102e2bae81d15bacbe0afaee1f28/cmd_sources/autoschool.json"
+    "name": "ГЦЛ",
+    "description": "Отыгровки для Центра Лицензирования.",
+    "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/cmd_sources/autoschool.json"
   }
 ]

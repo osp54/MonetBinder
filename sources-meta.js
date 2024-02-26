@@ -8,7 +8,7 @@ const sourceDir = path.join(__dirname, 'cmd_sources');
 const outputFile = path.join(__dirname, 'sourcesmeta.json');
 
 function generateDownloadLink(fileName) {
-  return `https://raw.githubusercontent.com/${repo}/cmd_sources/${fileName}`;
+  return `https://raw.githubusercontent.com/${repo}/main/cmd_sources/${fileName}`;
 }
 
 function parseJsonFiles() {
@@ -20,7 +20,7 @@ function parseJsonFiles() {
     results.push({
       name: jsonData.name,
       description: jsonData.description,
-      author: jsonData.author,
+      author: jsonData.author || 'Неизвестен',
       download_link: generateDownloadLink(fileName),
     });
   });

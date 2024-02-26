@@ -1,26 +1,26 @@
 const fs = require('fs');
+const iconv = require('iconv-lite'); // Install using npm install iconv-lite
 const path = require('path');
 
-const owner = process.env.GITHUB_REPOSITORY_OWNER;
 const repo = process.env.GITHUB_REPOSITORY;
-const sha = process.env.GITHUB_SHA;
 
 const sourceDir = path.join(__dirname, 'cmd_sources');
 const outputFile = path.join(__dirname, 'sourcesmeta.json');
 
 function generateDownloadLink(fileName) {
-  return `https://raw.githubusercontent.com/${owner}/${repo}/${sha}/cmd_sources/${fileName}`;
+  return `https://raw.githubusercontent.com/${repo}/cmd_sources/${fileName}`;
 }
 
 function parseJsonFiles() {
   const results = [];
   fs.readdirSync(sourceDir).forEach(fileName => {
     const filePath = path.join(sourceDir, fileName);
-    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    const data = iconv.decode(fs.readFileSync(filePath), 'cp1251'); // Read in cp1251
+    const jsonData = JSON.parse(data);
     results.push({
-      name: data.name,
-      description: data.description,
-      author: data.author,
+      name: jsonData.name,
+      description: jsonData.description,
+      author: jsonData.author,
       download_link: generateDownloadLink(fileName),
     });
   });
@@ -28,6 +28,6 @@ function parseJsonFiles() {
 }
 
 const metaData = parseJsonFiles();
-fs.writeFileSync(outputFile, JSON.stringify(metaData, null, 2));
+fs.writeFileSync(outputFile, JSON.stringify(metaData, null, 2), 'utf-8'); // Write in utf-8
 
 console.log(`Successfully created sourcesmeta.json`);

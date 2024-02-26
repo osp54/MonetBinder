@@ -19,7 +19,7 @@ jobs:
         node-version: 16
 
     - name: Install dependencies
-      run: npm install fs path
+      run: npm install fs path iconv-lite
 
     - name: Run the script
       run: node sources-meta.js

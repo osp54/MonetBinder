@@ -19,7 +19,7 @@ jobs:
       run: npm install fs path
 
     - name: Run the script
-      run: node parse_json.js
+      run: node source-meta.js
 
     - name: Commit and Push changes
       uses: EndBug/add-and-commit@v2

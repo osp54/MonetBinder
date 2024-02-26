@@ -4,5 +4,11 @@
     "description": "Отыгровки для Центра Лицензирования.",
     "author": "ospx",
     "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/autoschool.json"
+  },
+  {
+    "name": "МЮ",
+    "description": "Отыгровки для МЮ",
+    "author": "Joake",
+    "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/mj.json"
   }
 ]

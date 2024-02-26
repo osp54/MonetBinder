@@ -10,15 +10,19 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install jq
-      run: sudo apt update && sudo apt install jq -y
+    - name: Use Node.js 16
+      uses: actions/setup-node@v2
+      with:
+        node-version: 16
 
-    - name: Parse JSON Files
-      run: |
-        jq -r '.[] | {name: .name, description: .description, author: .author, download_link: "https://raw.githubusercontent.com/{{ github.repository_owner }}/{{ github.repository }}/{{ github.sha }}/cmd_sources/" + .name}' cmd_sources/*.json > sourcesmeta.json
+    - name: Install dependencies
+      run: npm install fs path
+
+    - name: Run the script
+      run: node parse_json.js
 
     - name: Commit and Push changes
       uses: EndBug/add-and-commit@v2
       with:
-        message: "Обновление sourcesmeta.json"
+        message: "Updated sourcesmeta.json"
         files: sourcesmeta.json

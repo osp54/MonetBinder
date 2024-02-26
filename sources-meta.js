@@ -20,7 +20,7 @@ function parseJsonFiles() {
     results.push({
       name: jsonData.name,
       description: jsonData.description,
-      author: jsonData.author || 'Неизвестен',
+      author: jsonData.author || iconv.encode('Неизвестен', 'cp1251'),
       download_link: generateDownloadLink(fileName),
     });
   });

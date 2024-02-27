@@ -11,4 +11,4 @@ Module "src.util"
 Module "src.imgui_util"
 Module "src.commandloader"
 
-Output "./dist/MonetBinder_v0.9.lua"
+Output "./dist/MonetBinder_v1.0.lua"

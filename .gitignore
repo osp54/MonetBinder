@@ -1,5 +1,9 @@
+.vscode
+t.lua
+
 # Compiled Lua sources
 luac.out
+dist
 
 # luarocks build files
 *.src.rock
@@ -38,4 +42,4 @@ luac.out
 *.i*86
 *.x86_64
 *.hex
-
+adb.ps1

@@ -1,0 +1,14 @@
+Main "./src/MonetBinder.lua"
+
+Option "uglify-level" "none"
+Option "minify_level" "none"
+
+Module "lib.jsoncfg"
+Module "lib.android"
+Module "lib.sandbox"
+
+Module "src.util"
+Module "src.imgui_util"
+Module "src.commandloader"
+
+Output "./dist/MonetBinder_v0.9.lua"

@@ -4,200 +4,207 @@
     "description": "Отыгровки для МЮ",
     "commands": [
         {
-            "enabled": true,
+            "name": "zd",
             "description": "Приветсвие",
             "params": {},
             "text": "Доброго времени суток, я ~{rank}~ - ~{nickname}~\n/do Удостоверение в руках.\n/me показал своё удостоверение человеку на против\n/do ~{nickname)~.\n/do ~{rank}~ LSPD.\nПредъявите ваши документы, а именно паспорт.",
-            "name": "zd"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "cf",
             "description": "Наручники",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/do На поясном держателе весят наручники.\n/me движением руки, снял наручники с держателя\n/do Наручники в руках.\n/me резким движением рук, надел наручники на преступника\n/cuff ~{id}~",
-            "name": "cf"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "uncf",
             "description": "Снять наручники",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/do Ключ от наручников в кармане.\n/me движением правой руки достал из кармана ключ и открыл наручники\n/do Преступник раскован.\n/uncuff ~{id}~",
-            "name": "uncf"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "gt",
             "description": "Вести за собой",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/me заломил правую руку нарушителю\n/me ведет нарушителя за собой\n/gotome ~{id}~",
-            "name": "gt"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "ung",
             "description": "Перестать вести за собой",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/me отпустил правую руку преступника\n/do Преступник свободен.\n/ungotome ~{id}~",
-            "name": "ung"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "arr",
             "description": "Аррест",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/me взял ручку из кармана рубашки, затем открыл бардачок и взял оттуда бланк протокола\n/do Бланк протокола и ручка в руках.\n/me заполняет описание внешности нарушителя/me заполняет характеристику о нарушителе\n/me заполняет данные о нарушении\n/me проставил дату и подпись\n/me положил ручку в карман рубашки\n/do Ручка в кармане рубашки.\n/me передал бланк составленного протокола в участок\n/me передал преступника в Управление Полиции под стражу\n/arrest ~{id}~",
-            "name": "arr"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "inc",
             "description": "Затащить в машину.",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/do Двери в машине закрыты.\n/me открыл заднюю дверь в машине\n/me посадил преступника в машину\n/me заблокировал двери\n/do Двери заблокированы.\n/incar ~{id}~",
-            "name": "inc"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "ob",
             "description": "Обыск",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/me нырнув руками в карманы, вытянул оттуда белые перчатки и натянул их на руки\n/do Перчатки надеты.\n/me проводит руками по верхней части тела\n/me проверяет карманы/me проводит руками по ногам\n/frisk~{id}~",
-            "name": "ob"
+            "enabled": true
         },
         {
-            "enabled": true,
-            "description": "Выдача штрафа(Вводить команду /ticket, в ручную)",
-            "params": {},
-            "text": "/do Папка с протоколом и квитанцией лежат в машине на переднем сидении.\n/me взял в руки папку, открыл её и вытащил протокол и квитанцию,затем положил их на папку\n/do Протокол и квитанция лежат на папке.\n/me взял в руки ручку и начал заполнять протокол и квитанцию\n/me передал заполненные протокол и квитанцию нарушителю\n/todo Больше не нарушайте!*закрывая папку",
-            "name": "shtr"
+            "name": "shtr",
+            "description": "Выдача штрафа",
+            "params": [
+                {
+                    "name": "id",
+                    "type": "player",
+                    "required": true,
+                    "default": ""
+                }
+            ],
+            "text": "/do Папка с протоколом и квитанцией лежат в машине на переднем сидении.\n/me взял в руки папку, открыл её и вытащил протокол и квитанцию,затем положил их на папку\n/do Протокол и квитанция лежат на папке.\n/me взял в руки ручку и начал заполнять протокол и квитанцию\n/me передал заполненные протокол и квитанцию нарушителю\n/todo Больше не нарушайте!*закрывая папку\n/ticket ~{id}~",
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "mega",
             "description": "Мегафон",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/do Мегафон в бардачке.\n/me достал мегафон с бардачка, после чего включил его\n/m Водитель авто марки ~{carid(id)}~, ~{inflectcolor(carcolorid(id))}~ цвета.\n/m ..заглушите двигатель и держите руки на руле.\n/m В противном случае мы имеем право отрыть огонь по колесам.\n/me отключив мегафон, положил у бардачок",
-            "name": "mega"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "pu",
             "description": "Найти преступника",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/do КПК в левом кармане.\n/me достал левой рукой КПК из кармана\n/do КПК в левой руке.\n/me включил КПК и зашел в базу данных Полиции\n/me открыл дело с данными преступника\n/do Данные преступника получены.\n/me подключился к камерам слежения штата\n/do На навигаторе появился жучок.\n/pursuit ~{id}~",
-            "name": "pu"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "mir",
             "description": "Миранда",
             "params": {},
             "text": "Вы имеете право хранить молчание. Всё, что вы скажете, может и будет использовано против вас в суде.\nВаш адвокат может присутствовать при допросе.\nЕсли вы не можете оплатить услуги адвоката, он будет предоставлен вам государством.\nВам ясны ваши права?",
-            "name": "mir"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "yz",
             "description": "Изьятие веществ",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/me достал из сумки пакет ZIP-LOCK\n/me достал из кармана нарушителя запрещенные вещества\n/me поместил запрещенные вещества в пакет ZIP-LOCK\n/todo Это пока что будет у меня* положив пакет ZIP-LOCK в сумку\n/take ~{id}~\n",
-            "name": "yz"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "mk",
             "description": "Маска",
             "params": {},
             "text": "/do На поясе закреплена спец. сумка.\n/me расстегнул сумку, достал из неё балаклаву\n/me натянул балаклаву на голову\n/mask",
-            "name": "mk"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "bon",
             "description": "Боди камера ON",
             "params": {},
             "text": "/do На груди скрытая боди-камера.\n/me движение руки, сделал двойное касание \n/do Боди-камера включилась, и ведет видео/фото запись.",
-            "name": "bon"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "boff",
             "description": "Боди камера OFF",
             "params": {},
             "text": "/do На груди весит включенная боди-камера.\n/me резким движением руки, нажал на боди-камеру\n/do Боди-камера прекратила запись, выключившись.",
-            "name": "boff"
+            "enabled": true
         },
         {
-            "enabled": true,
+            "name": "unm",
             "description": "Сорвать маску с лица подозреваемого",
             "params": [
                 {
-                    "required": true,
-                    "default": "",
                     "name": "id",
-                    "type": "player"
+                    "type": "player",
+                    "required": true,
+                    "default": ""
                 }
             ],
             "text": "/me держа подозреваемого, левой рукой насильно сдирает маску с человека\n/me кинул маску на землю\n/unmask ~{id}~",
-            "name": "unm"
+            "enabled": true
         }
     ]
 }

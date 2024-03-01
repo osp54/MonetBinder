@@ -5,11 +5,11 @@ script_description([[
 	Функциональный биндер на Lua для Arizona RP Mobile
 ]])
 script_url("https://github.com/osp54/MonetBinder")
-script_version("1.0")
+script_version("1.0.1")
 
 PATH_SEPARATOR = "/"
 if MONET_VERSION == nil then
-    PATH_SEPARATOR = "\\"
+	PATH_SEPARATOR = "\\"
 end
 
 ffi = require("ffi")
@@ -17,10 +17,11 @@ lfs = require("lfs")
 imgui = require("mimgui")
 
 jsoncfg = require("lib.jsoncfg")
-
 android = require("lib.android")
+
 util = require("src.util")
 imutil = require("src.imgui_util")
+doubleclickped = require("src.doubleclickped")
 commandloader = require("src.commandloader")
 
 fa = require("fAwesome6_solid")
@@ -32,6 +33,7 @@ cfg = {
 	general = {
 		default_delay = 1000,
 		nickname = "",
+		fraction = "",
 		rank = "",
 		rank_number = 0,
 	},
@@ -52,9 +54,14 @@ local function mimguiState()
 	local state = {}
 	state.renderMainMenu = imgui.new.bool(false)
 	state.mainMenuMenuPos = imgui.ImVec2(0, 0)
+	state.renderFastMenu = imgui.new.bool(false)
+
+	state.fastMenuPlayerId = nil
+	state.fastMenuPos = imgui.ImVec2(0, 0)
 
 	state.defaultDelayInput = imgui.new.int(cfg.general.default_delay)
 	state.nicknameInput = imgui.new.char[256](u8(cfg.general.nickname))
+	state.fractionInput = imgui.new.char[256](u8(cfg.general.fraction))
 	state.rankInput = imgui.new.char[256](u8(cfg.general.rank))
 	state.ranks = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10" }
 	state.ImRanks = imgui.new["const char*"][#state.ranks](state.ranks)
@@ -505,9 +512,20 @@ SOURCES_META_URL = "https://raw.githubusercontent.com/osp54/MonetBinder/main/sou
 cfg = jsoncfg.load(cfg, "MonetBinder", ".json") or cfg
 state = mimguiState()
 
+doubleclickped.onDoubleClickedPed = function(ped, x, y)
+	local res, id = sampGetPlayerIdByCharHandle(ped)
+
+	if res then
+		state.fastMenuPlayerId = id
+		state.fastMenuPos = imgui.ImVec2(x, y)
+		state.renderFastMenu[0] = true
+	end
+end
+
 local function isGeneralSettingsChanged()
 	return state.defaultDelayInput[0] ~= cfg.general.default_delay
 		or ffi.string(state.nicknameInput) ~= cfg.general.nickname
+		or ffi.string(state.fractionInput) ~= cfg.general.fraction
 		or ffi.string(state.rankInput) ~= cfg.general.rank
 		or state.rankNumberInput[0] + 1 ~= cfg.general.rank_number
 end
@@ -547,6 +565,15 @@ end, function(player)
 			function()
 				imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
 				imgui.InputText("##nickname", state.nicknameInput, 256)
+			end
+		)
+		imgui.Separator()
+		imutil.Setting(
+			u8("Ваша фракция"),
+			u8("Ваша фракция: %s"):format(ffi.string(state.fractionInput)),
+			function()
+				imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+				imgui.InputText("##fraction", state.fractionInput, 256)
 			end
 		)
 		imgui.Separator()
@@ -617,7 +644,13 @@ end, function(player)
 				description = "",
 				commands = {},
 				enabled = true,
-				filepath = getWorkingDirectory() .. PATH_SEPARATOR .. commandloader.dir .. PATH_SEPARATOR .. "profile" .. tostring(#commandloader.sources + 1) .. ".json"
+				filepath = getWorkingDirectory()
+					.. PATH_SEPARATOR
+					.. commandloader.dir
+					.. PATH_SEPARATOR
+					.. "profile"
+					.. tostring(#commandloader.sources + 1)
+					.. ".json",
 			})
 			state.selectedProfile = #commandloader.sources
 			state.currentMsource = commandloader.toMimguiTable(commandloader.sources[state.selectedProfile])
@@ -634,8 +667,13 @@ end, function(player)
 			)
 		then
 			imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
-			
-			if imgui.Button(fa.ARROWS_ROTATE .. u8" Перезагрузить список", imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
+
+			if
+				imgui.Button(
+					fa.ARROWS_ROTATE .. u8(" Перезагрузить список"),
+					imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
+				)
+			then
 				state.sources_meta = nil
 				state.sources_meta_loading = false
 			end
@@ -667,7 +705,7 @@ end, function(player)
 					elseif source.download_progress_percent then
 						imgui.Columns(1)
 						imgui.ProgressBar(source.download_progress_percent / 100, imgui.ImVec2(-1, 15 * MDS))
-						imgui.Columns(4, "##sources", true) 
+						imgui.Columns(4, "##sources", true)
 
 						if source.downloaded_at + 5 < os.time() then
 							source.downloaded_at = nil
@@ -681,11 +719,21 @@ end, function(player)
 					imgui.NextColumn()
 					imgui.Text(source.author)
 					imgui.NextColumn()
-					if imgui.Button(source.exsource.name and fa.ARROWS_ROTATE or fa.DOWNLOAD, imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x, 30*MDS)) then
+					if
+						imgui.Button(
+							source.exsource.name and fa.ARROWS_ROTATE or fa.DOWNLOAD,
+							imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x, 30 * MDS)
+						)
+					then
 						local filename = source.download_link:match("([^/]+)$")
-						local filepath = source.exsource.name and source.exsource.filepath or getWorkingDirectory() .. PATH_SEPARATOR .. commandloader.dir .. PATH_SEPARATOR .. filename
-						
-						util.downloadToFile(source.download_link, filepath, function (type, pos, total_size)
+						local filepath = source.exsource.name and source.exsource.filepath
+							or getWorkingDirectory()
+								.. PATH_SEPARATOR
+								.. commandloader.dir
+								.. PATH_SEPARATOR
+								.. filename
+
+						util.downloadToFile(source.download_link, filepath, function(type, pos, total_size)
 							if type == "downloading" then
 								state.sources_meta[i].download_progress_percent = (pos / total_size) * 100
 							elseif type == "error" then
@@ -694,7 +742,7 @@ end, function(player)
 								state.sources_meta[i].download_progress_percent = 100
 								state.sources_meta[i].downloaded = true
 								state.sources_meta[i].downloaded_at = os.time()
-								
+
 								commandloader.reload()
 							end
 						end)
@@ -712,7 +760,7 @@ end, function(player)
 
 			if not state.sources_meta and not state.sources_meta_loading then
 				state.sources_meta_loading = true
-				
+
 				local t = util.newThread(function(url)
 					local requests = require("requests")
 
@@ -732,15 +780,14 @@ end, function(player)
 				t:run(SOURCES_META_URL)
 				t:listen(function(res)
 					state.sources_meta_loading = false
-					
+
 					local ok, data = pcall(decodeJson, res)
 					if not ok then
 						state.sources_meta = { error = data }
 					else
 						state.sources_meta = data
 					end
-				end,
-				function(err)
+				end, function(err)
 					state.sources_meta = { error = err }
 				end)
 			end
@@ -971,9 +1018,14 @@ end, function(player)
 								imgui.Text(u8("~{%s%s}~ %s"):format(doc.name, u8(params), u8(doc.description)))
 								imgui.Separator()
 							end
-							
+
 							if imgui.CollapsingHeader(u8("Доступные функции Lua")) then
-								if imgui.Button(fa.LINK .. u8(" Открыть документацию Lua"), imgui.ImVec2(imutil.GetMiddleButtonX(1), 20 * MDS)) then
+								if
+									imgui.Button(
+										fa.LINK .. u8(" Открыть документацию Lua"),
+										imgui.ImVec2(imutil.GetMiddleButtonX(1), 20 * MDS)
+									)
+								then
 									util.openLink("https://www.lua.org/manual/5.1/")
 								end
 								function processAllowedLuaDoc(data, prefix)
@@ -983,13 +1035,13 @@ end, function(player)
 											imgui.Text(u8("~{%s}~ -- %s"):format(fullKey, u8(v.description)))
 											imgui.Separator()
 										end
-										
+
 										if v.is_function then
 											local params = "(" .. table.concat(v.params or {}, ", ") .. ")"
 											imgui.Text(u8("~{%s%s}~ %s"):format(fullKey, params, u8(v.description)))
 											imgui.Separator()
 										end
-										
+
 										if v.is_module then
 											imutil.CenterText(u8("Модуль: %s"):format(fullKey))
 											imutil.CenterText(u8(v.description))
@@ -1156,7 +1208,7 @@ end, function(player)
 				imgui.Cond.FirstUseEver,
 				imgui.ImVec2(0.5, 0.5)
 			)
-			imgui.Begin(u8(menu.name.."##"..i), menu.render)
+			imgui.Begin(u8(menu.name .. "##" .. i), menu.render)
 			imgui.Separator()
 			for i, choice in ipairs(menu.choices) do
 				local middleX = imutil.GetMiddleButtonX(2)
@@ -1170,7 +1222,7 @@ end, function(player)
 							elseif i > 1 then
 								wait(cfg.general.default_delay)
 							end
-							
+
 							if not util.isEmpty(line) then
 								sampProcessChatInput(line)
 							end
@@ -1188,6 +1240,53 @@ end, function(player)
 			end
 			imgui.End()
 		end
+	end
+end)
+
+imgui.OnFrame(function()
+	return state.renderFastMenu[0]
+end, function(player)
+	if state.fastMenuPlayerId and sampIsPlayerConnected(state.fastMenuPlayerId) then
+		imgui.SetNextWindowSize(imgui.ImVec2(400 * MDS, 250 * MDS), imgui.Cond.FirstUseEver)
+		imgui.SetNextWindowPos(
+			imgui.ImVec2(state.fastMenuPos.x, state.fastMenuPos.y + 250 / 2 * MDS),
+			imgui.Cond.FirstUseEver,
+			imgui.ImVec2(0.5, 0.5)
+		)
+
+		local nickname = sampGetPlayerNickname(state.fastMenuPlayerId)
+		imgui.Begin(u8("Действия над игроком ") .. nickname, state.renderFastMenu)
+		if imgui.BeginTabBar("##fastmenu") then
+			for _, source in pairs(commandloader.sources) do
+				if source.enabled then
+					local filtered = {}
+					for _, command in pairs(source.commands) do
+						if command.enabled and #command.params > 0 and command.params[1].type == "player" then
+							table.insert(filtered, command)
+						end
+					end
+
+					local middleX = imutil.GetMiddleButtonX(2)
+					if #filtered > 0 then
+						if imgui.BeginTabItem(u8(source.name)) then
+							for i, command in ipairs(filtered) do
+								if imutil.ButtonWrappedTextCenter(("/%s\n%s"):format(u8(command.name), u8(command.description)), imgui.ImVec2(middleX, 40 * MDS)) then
+									print(command.name)
+									sampProcessChatInput("/"..command.name.." "..state.fastMenuPlayerId)
+								end
+
+								if i % 2 ~= 0 then
+									imgui.SameLine()
+								end
+							end
+							imgui.EndTabItem()
+						end
+					end
+				end
+			end
+			imgui.EndTabBar()
+		end
+		imgui.End()
 	end
 end)
 
@@ -1232,6 +1331,10 @@ end
 
 require("samp.events").onShowDialog = function(dialogid, style, title, button1, button2, text)
 	if dialogid == 235 and check_stats then
+		if text:find("{FFFFFF}Организация: {B83434}%[(.-)]") then
+			cfg.general.fraction = text:match("{FFFFFF}Организация: {B83434}%[(.-)]")
+			state.fractionInput = imgui.new.char[256](u8(cfg.general.fraction))
+		end
 		if text:find("{FFFFFF}Должность: {B83434}(.+)%((%d+)%)") then
 			cfg.general.rank, cfg.general.rank_number =
 				text:match("{FFFFFF}Должность: {B83434}(.+)%((%d+)%)(.+)Уровень розыска")
@@ -1271,6 +1374,8 @@ function darkTheme()
 	imgui.GetStyle().IndentSpacing = 0
 	imgui.GetStyle().ScrollbarSize = 10
 	imgui.GetStyle().GrabMinSize = 10
+	local scsize = imgui.GetStyle().ScrollbarSize
+	imgui.GetStyle().ScrollbarSize = scsize + scsize / 2
 
 	--==[ BORDER ]==--
 	imgui.GetStyle().WindowBorderSize = 1

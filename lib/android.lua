@@ -1,3 +1,7 @@
+if not MONET_VERSION then
+    return setmetatable({}, {__index = function() return function() end end})
+end
+
 local ffi = require("ffi")
  
 ffi.cdef[[

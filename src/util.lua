@@ -43,14 +43,20 @@ function util.deepcopy(o, seen)
 	return no
 end
 
-local ffi = require('ffi')
-local gta = ffi.load('GTASA')
-ffi.cdef[[
-    void _Z12AND_OpenLinkPKc(const char* link);
-]]
+if MONET_VERSION then
+	local ffi = require('ffi')
+	local gta = ffi.load('GTASA')
+	ffi.cdef[[
+		void _Z12AND_OpenLinkPKc(const char* link);
+	]]
+end
 
 function util.openLink(link)
-    gta._Z12AND_OpenLinkPKc(link)
+	if MONET_VERSION then
+    	gta._Z12AND_OpenLinkPKc(link)
+	else
+		os.execute("explorer " .. link)
+	end
 end
 
 function util.find_in_tables(key, ...)
@@ -1129,6 +1135,17 @@ function util.downloadToFile(url, path, callback, progressInterval)
 	callback = callback or function() end
 	progressInterval = progressInterval or 0.1
 
+	if not MONET_VERSION then
+		local dlstatus = require('moonloader').download_status
+		return downloadUrlToFile(url, path, function(id, status, p1, p2)
+			if status == dlstatus.STATUS_DOWNLOADINGDATA then
+				callback("downloading", p1, p2)
+			elseif status == dlstatus.STATUS_ENDDOWNLOADDATA then
+				callback("finished", p1)
+			end
+		end)
+	end
+
 	local effil = require("effil")
 	local progressChannel = effil.channel(0)
 
@@ -1209,4 +1226,5 @@ function util.downloadToFile(url, path, callback, progressInterval)
 		checkStatus()
 	end)
 end
+
 return util

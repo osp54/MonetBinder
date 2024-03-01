@@ -40,7 +40,7 @@ local CommandLoader = {
 	dir = "commands",
 }
 
-local path = getWorkingDirectory() .. "/" .. CommandLoader.dir
+local path = getWorkingDirectory() .. PATH_SEPARATOR .. CommandLoader.dir
 if not lfs.attributes(path) then
 	lfs.mkdir(path)
 end
@@ -197,7 +197,6 @@ CommandLoader.env = {
 			local veh = storeCarCharIsInNoSave(char)
 			local idcar = getCarModel(veh)
 
-			print(idcar)
 			return res and util.arzcars[idcar] or "Неизвестно"
 		end
 		
@@ -417,7 +416,7 @@ function scanDirectory(directory, scanSubdirs)
 	local dirs = {}
 	for file in lfs.dir(directory) do
 		if file ~= "." and file ~= ".." then
-			local filePath = directory .. "/" .. file
+			local filePath = directory .. PATH_SEPARATOR .. file
 			local mode = lfs.attributes(filePath, "mode")
 			if mode == "file" and file:find(".json$") then
 				table.insert(files, file)
@@ -627,11 +626,11 @@ function CommandLoader.processFile(filePath)
 end
 
 function CommandLoader.load()
-	local files, dirs = scanDirectory(CommandLoader.dir, true)
+	local files, dirs = scanDirectory(getWorkingDirectory() .. PATH_SEPARATOR ..CommandLoader.dir, true)
 	CommandLoader.processFiles(files, CommandLoader.dir)
 
 	for dir, files in pairs(dirs) do
-		local directory = CommandLoader.dir .. "/" .. dir
+		local directory = CommandLoader.dir .. PATH_SEPARATOR .. dir
 		CommandLoader.processFiles(files, directory)
 	end
 end
@@ -645,7 +644,7 @@ end
 
 function CommandLoader.processFiles(files, directory)
 	for _, file in ipairs(files) do
-		local filePath = string.format("%s/%s/%s", getWorkingDirectory(), directory, file)
+		local filePath = getWorkingDirectory() .. PATH_SEPARATOR .. directory .. PATH_SEPARATOR .. file
 		CommandLoader.processFile(filePath)
 	end
 end

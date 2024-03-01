@@ -7,11 +7,17 @@ script_description([[
 script_url("https://github.com/osp54/MonetBinder")
 script_version("1.0")
 
+PATH_SEPARATOR = "/"
+if MONET_VERSION == nil then
+    PATH_SEPARATOR = "\\"
+end
+
 ffi = require("ffi")
 lfs = require("lfs")
 imgui = require("mimgui")
 
 jsoncfg = require("lib.jsoncfg")
+
 android = require("lib.android")
 util = require("src.util")
 imutil = require("src.imgui_util")
@@ -494,7 +500,7 @@ local allowedLuaDoc = {
 	},
 }
 
-MDS = MONET_DPI_SCALE
+MDS = MONET_DPI_SCALE or 1
 SOURCES_META_URL = "https://raw.githubusercontent.com/osp54/MonetBinder/main/sourcesmeta.json"
 cfg = jsoncfg.load(cfg, "MonetBinder", ".json") or cfg
 state = mimguiState()
@@ -508,9 +514,9 @@ end
 
 imgui.OnInitialize(function()
 	imgui.GetIO().IniFilename = nil
-	fa.Init(14 * MONET_DPI_SCALE)
+	fa.Init(14 * MDS)
 
-	imgui.GetStyle():ScaleAllSizes(MONET_DPI_SCALE)
+	imgui.GetStyle():ScaleAllSizes(MDS)
 	darkTheme()
 end)
 
@@ -611,12 +617,7 @@ end, function(player)
 				description = "",
 				commands = {},
 				enabled = true,
-				filepath = string.format(
-					"%s/%s/profile%d.json",
-					getWorkingDirectory(),
-					commandloader.dir,
-					#commandloader.sources + 1
-				),
+				filepath = getWorkingDirectory() .. PATH_SEPARATOR .. commandloader.dir .. PATH_SEPARATOR .. "profile" .. tostring(#commandloader.sources + 1) .. ".json"
 			})
 			state.selectedProfile = #commandloader.sources
 			state.currentMsource = commandloader.toMimguiTable(commandloader.sources[state.selectedProfile])
@@ -682,7 +683,7 @@ end, function(player)
 					imgui.NextColumn()
 					if imgui.Button(source.exsource.name and fa.ARROWS_ROTATE or fa.DOWNLOAD, imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x, 30*MDS)) then
 						local filename = source.download_link:match("([^/]+)$")
-						local filepath = source.exsource.name and source.exsource.filepath or string.format("%s/%s/%s", getWorkingDirectory(), commandloader.dir, filename)
+						local filepath = source.exsource.name and source.exsource.filepath or getWorkingDirectory() .. PATH_SEPARATOR .. commandloader.dir .. PATH_SEPARATOR .. filename
 						
 						util.downloadToFile(source.download_link, filepath, function (type, pos, total_size)
 							if type == "downloading" then

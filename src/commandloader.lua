@@ -40,7 +40,7 @@ local CommandLoader = {
 	dir = "commands",
 }
 
-local path = getWorkingDirectory() .. PATH_SEPARATOR .. CommandLoader.dir
+local path = util.path_join(getWorkingDirectory(), CommandLoader.dir)
 if not lfs.attributes(path) then
 	lfs.mkdir(path)
 end
@@ -424,7 +424,7 @@ function scanDirectory(directory, scanSubdirs)
 	local dirs = {}
 	for file in lfs.dir(directory) do
 		if file ~= "." and file ~= ".." then
-			local filePath = directory .. PATH_SEPARATOR .. file
+			local filePath = util.path_join(directory, file)
 			local mode = lfs.attributes(filePath, "mode")
 			if mode == "file" and file:find(".json$") then
 				table.insert(files, file)
@@ -634,11 +634,11 @@ function CommandLoader.processFile(filePath)
 end
 
 function CommandLoader.load()
-	local files, dirs = scanDirectory(getWorkingDirectory() .. PATH_SEPARATOR ..CommandLoader.dir, true)
+	local files, dirs = scanDirectory(util.path_join(getWorkingDirectory(), CommandLoader.dir), true)
 	CommandLoader.processFiles(files, CommandLoader.dir)
 
 	for dir, files in pairs(dirs) do
-		local directory = CommandLoader.dir .. PATH_SEPARATOR .. dir
+		local directory = util.path_join(CommandLoader.dir, dir)
 		CommandLoader.processFiles(files, directory)
 	end
 end
@@ -652,7 +652,7 @@ end
 
 function CommandLoader.processFiles(files, directory)
 	for _, file in ipairs(files) do
-		local filePath = getWorkingDirectory() .. PATH_SEPARATOR .. directory .. PATH_SEPARATOR .. file
+		local filePath = util.path_join(getWorkingDirectory(), directory, file)
 		CommandLoader.processFile(filePath)
 	end
 end

@@ -76,6 +76,21 @@ function util.invertTbl(tbl)
 	return inverted
 end
 
+function util.path_join(...)
+	local SEPARATOR = package.config:sub(1, 1)
+
+	local parts = { ... }
+	local path = parts[1]
+	for i = 2, #parts do
+		if path:sub(-1) == SEPARATOR then
+			path = path .. parts[i]
+		else
+			path = path .. SEPARATOR .. parts[i]
+		end
+	end
+	return path
+end
+
 function util.getNearestPedByPed(hndlPed, radius)
 	minDist, closestHandle = nil, nil
 	if doesCharExist(hndlPed) then -- проверяем, существует ли Handle

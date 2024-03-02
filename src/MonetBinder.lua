@@ -653,13 +653,11 @@ end, function(player)
 				description = "",
 				commands = {},
 				enabled = true,
-				filepath = getWorkingDirectory()
-					.. PATH_SEPARATOR
-					.. commandloader.dir
-					.. PATH_SEPARATOR
-					.. "profile"
-					.. tostring(#commandloader.sources + 1)
-					.. ".json",
+				filepath = util.path_join(
+					getWorkingDirectory(),
+					commandloader.dir,
+					"profile" .. tostring(#commandloader.sources + 1) .. ".json"
+				),
 			})
 			state.selectedProfile = #commandloader.sources
 			state.currentMsource = commandloader.toMimguiTable(commandloader.sources[state.selectedProfile])
@@ -735,12 +733,7 @@ end, function(player)
 						)
 					then
 						local filename = source.download_link:match("([^/]+)$")
-						local filepath = source.exsource.name and source.exsource.filepath
-							or getWorkingDirectory()
-								.. PATH_SEPARATOR
-								.. commandloader.dir
-								.. PATH_SEPARATOR
-								.. filename
+						local filepath = source.exsource.name and source.exsource.filepath or util.path_join(getWorkingDirectory(), commandloader.dir, filename)
 
 						util.downloadToFile(source.download_link, filepath, function(type, pos, total_size)
 							if type == "downloading" then
@@ -1279,9 +1272,13 @@ end, function(player)
 					if #filtered > 0 then
 						if imgui.BeginTabItem(u8(source.name)) then
 							for i, command in ipairs(filtered) do
-								if imutil.ButtonWrappedTextCenter(("/%s\n%s"):format(u8(command.name), u8(command.description)), imgui.ImVec2(middleX, 40 * MDS)) then
-									print(command.name)
-									sampProcessChatInput("/"..command.name.." "..state.fastMenuPlayerId)
+								if
+									imutil.ButtonWrappedTextCenter(
+										("/%s\n%s"):format(u8(command.name), u8(command.description)),
+										imgui.ImVec2(middleX, 40 * MDS)
+									)
+								then
+									sampProcessChatInput("/" .. command.name .. " " .. state.fastMenuPlayerId)
 								end
 
 								if i % 2 ~= 0 then

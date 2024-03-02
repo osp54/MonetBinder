@@ -79,6 +79,18 @@ function imutil.Setting(name, setting, callback, close_button)
 	imgui.EndChild()
 end
 
+function imutil.SettingButton(setting)
+	imgui.BeginChild(setting, imgui.ImVec2(0, 40 * MDS), true)
+	imgui.Text(setting)
+	imgui.SameLine()
+
+	local size = imgui.ImVec2(30 * MDS, 30 * MDS)
+	imgui.SetCursorPosX(imutil.GetEndPosButtonX(size, 1))
+	local button = imgui.Button(fa.PEN, size)
+	imgui.EndChild()
+	return button
+end
+
 function imutil.CenterButton(label, bsize, alignment)
 	bsize = bsize or imgui.ImVec2(0, 0)
 	alignment = alignment or 0.5

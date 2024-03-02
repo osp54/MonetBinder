@@ -36,6 +36,7 @@ cfg = {
 		fraction = "",
 		rank = "",
 		rank_number = 0,
+		sex = "Мужчина",
 	},
 	ui = {
 		monet_binder_button = true,
@@ -62,6 +63,7 @@ local function mimguiState()
 	state.defaultDelayInput = imgui.new.int(cfg.general.default_delay)
 	state.nicknameInput = imgui.new.char[256](u8(cfg.general.nickname))
 	state.fractionInput = imgui.new.char[256](u8(cfg.general.fraction))
+
 	state.rankInput = imgui.new.char[256](u8(cfg.general.rank))
 	state.ranks = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10" }
 	state.ImRanks = imgui.new["const char*"][#state.ranks](state.ranks)
@@ -558,7 +560,6 @@ end, function(player)
 				imgui.InputInt("##defaultdelay", state.defaultDelayInput, 0)
 			end
 		)
-		imgui.Separator()
 		imutil.Setting(
 			u8("Ваше РП имя"),
 			u8("Ваше РП имя: %s"):format(ffi.string(state.nicknameInput)),
@@ -567,7 +568,16 @@ end, function(player)
 				imgui.InputText("##nickname", state.nicknameInput, 256)
 			end
 		)
-		imgui.Separator()
+		if imutil.SettingButton(u8("Ваш пол: %s"):format(u8(cfg.general.sex))) then
+			if cfg.general.sex == "Мужчина" then
+				cfg.general.sex = "Женщина"
+			elseif cfg.general.sex == "Женщина" then
+				cfg.general.sex = "Мужчина"
+			else
+				check_stats = true
+				sampSendChat("/stats")
+			end
+		end
 		imutil.Setting(
 			u8("Ваша фракция"),
 			u8("Ваша фракция: %s"):format(ffi.string(state.fractionInput)),
@@ -576,7 +586,6 @@ end, function(player)
 				imgui.InputText("##fraction", state.fractionInput, 256)
 			end
 		)
-		imgui.Separator()
 		imutil.Setting(
 			u8("Ваш ранг"),
 			u8("Ваш ранг: %s (%d)"):format(ffi.string(state.rankInput), state.rankNumberInput[0] + 1),
@@ -1331,6 +1340,9 @@ end
 
 require("samp.events").onShowDialog = function(dialogid, style, title, button1, button2, text)
 	if dialogid == 235 and check_stats then
+		if text:find("{FFFFFF}Пол: {B83434}%[(.-)]") then
+			cfg.general.sex = text:match("{FFFFFF}Пол: {B83434}%[(.-)]")
+		end
 		if text:find("{FFFFFF}Организация: {B83434}%[(.-)]") then
 			cfg.general.fraction = text:match("{FFFFFF}Организация: {B83434}%[(.-)]")
 			state.fractionInput = imgui.new.char[256](u8(cfg.general.fraction))

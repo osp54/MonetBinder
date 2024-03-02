@@ -68,6 +68,14 @@ function util.find_in_tables(key, ...)
 	return nil
 end
 
+function util.invertTbl(tbl)
+	local inverted = {}
+	for k, v in pairs(tbl) do
+		inverted[v] = k
+	end
+	return inverted
+end
+
 function util.getNearestPedByPed(hndlPed, radius)
 	minDist, closestHandle = nil, nil
 	if doesCharExist(hndlPed) then -- проверяем, существует ли Handle

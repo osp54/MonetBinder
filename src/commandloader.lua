@@ -96,6 +96,9 @@ CommandLoader.env = {
 	["date"] = function()
 		return os.date("%d.%m.%Y")
 	end,
+	["sex"] = function()
+		return cfg.general.sex == "Мужской" and "" or "а"
+	end,
 	["my_gun"] = function()
 		return getCurrentCharWeapon(PLAYER_PED)
 	end,
@@ -272,6 +275,11 @@ CommandLoader.env_docs = {
 	{
 		name="date",
 		description="Возвращает текущую дату",
+		params={}
+	},
+	{
+		name="sex",
+		description="Возвращает а если пол персонажа женский, иначе пустую строку",
 		params={}
 	},
 	{

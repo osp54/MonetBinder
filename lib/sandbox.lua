@@ -176,7 +176,7 @@ function sandbox.protect(code, options)
 			error(t[2])
 		end
 
-		return table.unpack(t, 2, t.n)
+		return table.unpack(t, 2, t.n), env
 	end
 end
 

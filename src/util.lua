@@ -44,8 +44,8 @@ function util.deepcopy(o, seen)
 end
 
 if MONET_VERSION then
-	local ffi = require('ffi')
-	local gta = ffi.load('GTASA')
+	ffi = require('ffi')
+	gta = ffi.load('GTASA')
 	ffi.cdef[[
 		void _Z12AND_OpenLinkPKc(const char* link);
 	]]
@@ -59,13 +59,12 @@ function util.openLink(link)
 	end
 end
 
-function util.find_in_tables(key, ...)
-	for _, tbl in ipairs({ ... }) do
-		if tbl[key] ~= nil then
-			return tbl[key]
+function util.findByField(tbl, field, value)
+	for k, v in pairs(tbl) do
+		if v[field] == value then
+			return v
 		end
 	end
-	return nil
 end
 
 function util.invertTbl(tbl)

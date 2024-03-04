@@ -116,13 +116,17 @@ function imutil.CenterError(text)
 	imgui.TextColored(imgui.ImVec4(1, 0, 0, 1), text)
 end
 
-function imutil.CenterText(text)
-	local width = imgui.GetWindowWidth()
+function imutil.CenterText(text, parentWidth)
+	local width = parentWidth or imgui.GetWindowWidth()
 	local calc = imgui.CalcTextSize(text)
 	imgui.SetCursorPosX(width / 2 - calc.x / 2)
 	imgui.Text(text)
 end
 
+--- Draw a button with text that wraps to fit the button width and is centered.
+---@param text string
+---@param size ImVec2
+---@return boolean
 function imutil.ButtonWrappedTextCenter(text, size)
     local is_pressed = imgui.Button("##"..text, size)
     local button_min, button_max = imgui.GetItemRectMin(), imgui.GetItemRectMax()
@@ -147,6 +151,7 @@ function imutil.ButtonWrappedTextCenter(text, size)
     
     return is_pressed
 end
+
 function imutil.BackgroundButton(label, open, pos, size, color, movable)
 	if not pos then
 		error("pos is nil")

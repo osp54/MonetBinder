@@ -4,6 +4,24 @@
 ---@field default? string
 ---@field required boolean
 
+---@class Vec2
+---@field x number
+---@field y number
+
+---@class Menu
+---@field name string
+---@field description? string
+---@field render boolean
+---@field size Vec2
+---@field type MenuType
+
+---@class MenuChoice
+---@field name string
+---@field text string
+
+---@class ChoiceMenu : Menu
+---@field choices MenuChoice[]
+
 ---@class Command
 ---@field name string
 ---@field text string
@@ -11,6 +29,7 @@
 ---@field enabled? boolean
 ---@field params? Param[]
 ---@field errors? string[]
+---@field menus? Menu[]
 ---@field hasErrors boolean
 
 ---@class CommandSource
@@ -44,6 +63,11 @@ local path = util.path_join(getWorkingDirectory(), CommandLoader.dir)
 if not lfs.attributes(path) then
 	lfs.mkdir(path)
 end
+
+---@enum MenuType
+CommandLoader.menuTypes = {
+	CHOICE = "choice",
+}
 
 CommandLoader.typeProcessor = {
 	["player"] = function(param)
@@ -247,19 +271,6 @@ CommandLoader.env = {
 
 		return nearest and select(2, sampGetPlayerIdByCharHandle(nearest)) or nil
 	end,
-	["chooseMenu"] = function(title, items)
-		table.insert(state.menus, {
-			name = title,
-			render = imgui.new.bool(true),
-			choices = items
-		})
-	end,
-	["choice"] = function(name, text)
-		return {
-			name = name,
-			text = text
-		}
-	end,
 }
 CommandLoader.env_docs = {
 	{
@@ -408,14 +419,9 @@ CommandLoader.env_docs = {
 		params={"радиус"}
 	},
 	{
-		name="chooseMenu",
-		description="Открыть меню выбора",
-		params={"заголовок", "варианты"}
-	},
-	{
-		name="choice",
-		description="Создать вариант для меню",
-		params={"название", "текст"}
+		name="openMenu",
+		description="Открывает меню",
+		params={"имя меню"}
 	},
 }
 
@@ -466,6 +472,29 @@ function CommandLoader.toMimguiTable(source)
 
 			table.insert(ctbl.params, ptbl)
 		end
+		ctbl.menus = {}
+		for _, menu in ipairs(cmd.menus or {}) do
+			local m = {}
+			m.name = imgui.new.char[128](u8(menu.name))
+			m.description = imgui.new.char[256](u8(menu.description) or "")
+			m.size = {
+				x = imgui.new.int(menu.size.x),
+				y = imgui.new.int(menu.size.y),
+			}
+			m.type = imgui.new.char[128](menu.type)
+			print(menu.type)
+			if menu.type == CommandLoader.menuTypes.CHOICE then
+				m.choices = {}
+				for _, choice in ipairs(menu.choices) do
+					print(choice.name, choice.text)
+					local c = {}
+					c.name = imgui.new.char[128](u8(choice.name))
+					c.text = imgui.new.char[1024](u8(choice.text))
+					table.insert(m.choices, c)
+				end
+			end
+			table.insert(ctbl.menus, m)
+		end
 
 		table.insert(tbl.commands, ctbl)
 	end
@@ -498,6 +527,27 @@ function CommandLoader.fromMimguiTable(tbl)
 
 			table.insert(ctbl.params, ptbl)
 		end
+		ctbl.menus = {}
+		for _, menu in ipairs(cmd.menus or {}) do
+			local m = {}
+			m.name = u8:decode(ffi.string(menu.name))
+			m.description = u8:decode(ffi.string(menu.description) or "")
+			m.size = {
+				x = menu.size.x[0],
+				y = menu.size.y[0],
+			}
+			m.type = ffi.string(menu.type)
+			if menu.type == CommandLoader.menuTypes.CHOICE then
+				m.choices = {}
+				for _, choice in ipairs(menu.choices) do
+					local c = {}
+					c.name = u8:decode(ffi.string(choice.name))
+					c.text = u8:decode(ffi.string(choice.text))
+					table.insert(m.choices, c)
+				end
+			end
+			table.insert(ctbl.menus, m)
+		end
 
 		table.insert(source.commands, ctbl)
 	end
@@ -505,23 +555,14 @@ function CommandLoader.fromMimguiTable(tbl)
 	return source
 end
 
-CommandLoader.errorDescriptions = {
-	[1] = "Имя источника не может быть пустым",
-	[2] = "Имя команды не может быть пустым",
-	[3] = "Текст команды не может быть пустым",
-	[4] = "Имя параметра не может быть пустым",
-	[5] = "Тип параметра не может быть пустым",
-	[6] = "Неизвестный тип параметра",
-}
-
 ---@param source CommandSource
 ---@param filename string
----@return ValidatorError[], CommandSource @Ошибки, источник
+---@return CommandSource
 function CommandLoader.validateSource(source, filename)
-	local errors = {}
-
+	local hasErrors = false
 	if isEmpty(source.name) then
-		table.insert(errors, { error_code = 1, details = "source" })
+		hasErrors = true
+		print("Source name is empty in file " .. filename)
 	end
 
 	if source.enabled == nil then
@@ -533,29 +574,26 @@ function CommandLoader.validateSource(source, filename)
 	end
 
 	for i, cmd in ipairs(source.commands) do
-		local command, cmd_errors = CommandLoader.validateCommand(cmd)
-		for _, error_msg in ipairs(cmd_errors) do
-			table.insert(errors, error_msg)
-		end
-
+		local command = CommandLoader.validateCommand(cmd)
 		source.commands[i] = command
 	end
 
-	return errors, source
+	return source
 end
 
 ---@param command table
----@return Command, ValidatorError[] @Команда, ошибки
+---@return Command
 function CommandLoader.validateCommand(command)
-	---@type ValidatorError[]
-	local errors = {}
+	local hasErrors = false
 
 	if isEmpty(command.name) then
-		table.insert(errors, { error_code = 2, details = command.id })
+		hasErrors = true
+		print(string.format("Command has no name"))
 	end
 
 	if isEmpty(command.text) then
-		table.insert(errors, { error_code = 3, details = command.id })
+		hasErrors = true
+		print(string.format("Command %s has no text", command.name))
 	end
 
 	if command.enabled == nil then
@@ -564,9 +602,9 @@ function CommandLoader.validateCommand(command)
 
 	if command.params then
 		for i, param in ipairs(command.params) do
-			local param_errors = {}
 			if isEmpty(param.name) then
-				table.insert(param_errors, { error_code = 4, details = command.id })
+				hasErrors = true
+				print(string.format("Param %s has no name in command %s", i, command.name))
 			end
 
 			if not param.type then
@@ -582,25 +620,44 @@ function CommandLoader.validateCommand(command)
 			end
 
 			if not CommandLoader.typeProcessor[param.type] then
-				table.insert(param_errors, { error_code = 6, details = { param_id = i, command_id = command.id } })
-			end
-
-			for _, error_msg in ipairs(param_errors) do
-				table.insert(errors, error_msg)
+				hasErrors = true
+				print(string.format("Param %s has no type in command %s", param.name, command.name))
 			end
 		end
 	else
 		command.params = {}
 	end
 
-	command.errors = errors
-	command.hasErrors = #errors > 0
+	if command.menus then
+		for i, menu in ipairs(command.menus) do
+			if menu.type == CommandLoader.menuTypes.CHOICE then
+				if not menu.choices then
+					menu.choices = {}
+				end
+				for j, choice in ipairs(menu.choices) do
+					if isEmpty(choice.name) then
+						hasErrors = true
+						print(string.format("Choice %s has no name in menu %s in command %s", j, menu.name, command.name))
+					end
 
-	if command.hasErrors then
+					if not choice.text then
+						choice.text = ""
+					end
+				end
+			else
+				hasErrors = true
+				print(string.format("Menu %s has unknown type in command %s", menu.name, command.name))
+			end
+		end
+	else
+		command.menus = {}
+	end
+
+	if hasErrors then
 		command.enabled = false
 	end
 
-	return command, errors
+	return command
 end
 
 function CommandLoader.processFile(filePath)
@@ -619,14 +676,7 @@ function CommandLoader.processFile(filePath)
 		return
 	end
 	if data then
-		local gerrors, source = CommandLoader.validateSource(data, filePath)
-
-		if #gerrors > 0 then
-			print("Errors in file " .. filePath)
-			for _, error in ipairs(gerrors) do
-				print(CommandLoader.errorDescriptions[error.error_code], error.details)
-			end
-		end
+		local source = CommandLoader.validateSource(data, filePath)
 
 		source.filepath = filePath
 		table.insert(CommandLoader.sources, source)
@@ -729,37 +779,66 @@ function CommandLoader.registerCommands()
 						args[pdata.name] = arg
 					end
 
-					local text = cmd.text
-					lua_thread.create(function()
+					local env = util.merge(args, cfg.general, CommandLoader.env)
+
+					local function processLine(line, env)
+						line = line:gsub("~{(.-)}~", function(expr)
+							if not expr:match("^%s*[%w_]+%s*=%s*") and not expr:match("^%s*return%s+") then
+								expr = "return "..expr
+							end
+							local ok, result, penv = pcall(sandbox.run, expr, {
+								env = env,
+							})
+							env = penv
+							if not ok then
+								print(result)
+								sampAddChatMessage(result, -1)
+								return ""
+							end
+							return tostring(result or "")
+						end)
+						return line
+					end
+					
+					local function processLines(text)
 						local i = 1
 						for line in text:gmatch("[^\r\n]+") do
-							line = line:gsub("~{(.-)}~", function(expr)
-								local ok, result = pcall(sandbox.run, expr:find("^return") and expr or "return "..expr, {
-									env = util.merge(args, cfg.general, CommandLoader.env),
-								})
-
-								if not ok then
-									print(result)
-									sampAddChatMessage(result, -1)
-									return ""
-								end
-
-								return tostring(result or "")
-							end)
-
+							line = processLine(line, env)
 							if state.waitm then
 								wait(state.waitm)
 								state.waitm = nil
 							elseif i > 1 then
 								wait(cfg.general.default_delay)
 							end
-
 							if not isEmpty(line) then
+								i = i + 1
 								sampProcessChatInput(line)
 							end
-
-							i = i + 1
 						end
+					end
+
+					function env.openMenu(name)
+						---@type Menu
+						local menu = util.findByField(cmd.menus, "name", name)
+						if not menu then
+							error("Menu not found: " .. name)
+						end
+						
+						if menu.type == CommandLoader.menuTypes.CHOICE then
+							table.insert(state.menus, util.merge(menu, {
+								render = imgui.new.bool(true),
+								onChoice = function (choice)
+									env.choice = choice.name
+									lua_thread.create(function()
+										processLines(choice.text)
+									end)
+								end
+							}))
+						end
+					end
+
+					lua_thread.create(function()
+						processLines(cmd.text)
 					end)
 				end)
 			end

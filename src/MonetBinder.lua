@@ -1,16 +1,13 @@
-script_name("MonetBinder")
+local version = "1.1"
+
+script_name("MonetBinder v" .. version)
 script_author("OSPx")
 script_description([[
 	A functional binder in Lua for Arizona RP Mobile utilizing the MonetLoader Runtime
-	Функциональный биндер на Lua для Arizona RP Mobile
+	Многофункциональный биндер на Lua для Arizona RP Mobile
 ]])
 script_url("https://github.com/osp54/MonetBinder")
-script_version("1.0.1")
-
-PATH_SEPARATOR = "/"
-if MONET_VERSION == nil then
-	PATH_SEPARATOR = "\\"
-end
+script_version(version)
 
 ffi = require("ffi")
 lfs = require("lfs")
@@ -39,6 +36,7 @@ cfg = {
 		sex = "Мужчина",
 	},
 	ui = {
+		theme = 0,
 		monet_binder_button = true,
 		monet_binder_button_pos = {
 			x = 340,
@@ -72,10 +70,13 @@ local function mimguiState()
 	state.monetBinderButton = imgui.new.bool(cfg.ui.monet_binder_button)
 	state.monetBinderButtonMove = false
 
+	state.theme = imgui.new.int(cfg.ui.theme)
+
 	state.selectedProfile = 0
 	state.currentMsource = nil
 	state.currentCommand = nil
 
+	--- @type table<number, Menu>
 	state.menus = {}
 	return state
 end
@@ -512,6 +513,12 @@ local allowedLuaDoc = {
 MDS = MONET_DPI_SCALE or 1
 SOURCES_META_URL = "https://raw.githubusercontent.com/osp54/MonetBinder/main/sourcesmeta.json"
 cfg = jsoncfg.load(cfg, "MonetBinder", ".json") or cfg
+
+-- compatibility with old versions
+if type(cfg.ui.theme) ~= "number" then
+	cfg.ui.theme = 0
+end
+
 state = mimguiState()
 
 doubleclickped.onDoubleClickedPed = function(ped, x, y)
@@ -537,7 +544,12 @@ imgui.OnInitialize(function()
 	fa.Init(14 * MDS)
 
 	imgui.GetStyle():ScaleAllSizes(MDS)
-	darkTheme()
+	
+	if cfg.ui.theme == 0 then
+		grayTheme()
+	else
+		darkTheme()
+	end
 end)
 
 imgui.OnFrame(function()
@@ -664,11 +676,11 @@ end, function(player)
 		end
 		imgui.SameLine()
 		if imgui.Button(fa.GLOBE, imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
-			imgui.OpenPopup(u8("Профили, созданные другими игроками"))
+			imgui.OpenPopup(u8("Браузер профилей"))
 		end
 		if
 			imgui.BeginPopupModal(
-				u8("Профили, созданные другими игроками"),
+				u8("Браузер профилей"),
 				_,
 				imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
 			)
@@ -815,13 +827,6 @@ end, function(player)
 		imgui.EndChild()
 		imgui.SameLine()
 		imgui.BeginChild("##profile", imgui.ImVec2(0, 0), true)
-		if state.selectedProfile == 0 then
-			imgui.SetCursorPosY(imgui.GetWindowHeight() / 2)
-			imutil.CenterText(u8("Выберите профиль"))
-
-			imgui.EndChild()
-			imgui.EndTabItem()
-		end
 
 		local source = commandloader.sources[state.selectedProfile]
 		if source and state.currentMsource then
@@ -848,6 +853,8 @@ end, function(player)
 				commandloader.sources[state.selectedProfile] = commandloader.fromMimguiTable(state.currentMsource)
 				commandloader.saveSource(commandloader.sources[state.selectedProfile])
 				commandloader.reload()
+
+				android:showToast(u8("Шаблон сохранен"), 1)
 			end
 			imgui.SameLine()
 			if
@@ -893,6 +900,7 @@ end, function(player)
 					text = imgui.new.char[1024](),
 					enabled = imgui.new.bool(true),
 					params = {},
+					menus = {},
 				})
 			end
 			imgui.Columns(3, "##commands", true)
@@ -942,7 +950,7 @@ end, function(player)
 
 				imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
 				if util.isEmpty(ffi.string(command.name)) then
-					imutil.CenterError(u8(commandloader.errorDescriptions[2]))
+					imutil.CenterError("Имя команды не может быть пустым")
 				end
 				imutil.Setting(
 					u8("Название"),
@@ -964,177 +972,197 @@ end, function(player)
 				imgui.Separator()
 
 				if util.isEmpty(ffi.string(command.text)) then
-					imutil.CenterError(u8(commandloader.errorDescriptions[3]))
+					imutil.CenterError(u8("Текст команды не может быть пустым"))
 				end
+
+				local function textEdit(lbl, text)
+					imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+					imgui.InputTextMultiline(
+						lbl,
+						text,
+						1024,
+						imgui.ImVec2(0, imgui.GetWindowHeight() - 70 * MDS - imgui.GetStyle().FramePadding.y * 2)
+					)
+
+					imgui.SetCursorPosY(imgui.GetWindowHeight() - 30 * MDS - imgui.GetStyle().FramePadding.y * 2)
+					if
+						imgui.Button(
+							fa.TAGS .. u8(" Переменные/Функции"),
+							imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)
+						)
+					then
+						imgui.OpenPopup(u8("Переменные/Функции"))
+					end
+
+					if
+						imgui.BeginPopupModal(
+							u8("Переменные/Функции"),
+							_,
+							imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
+						)
+					then
+						imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
+						imutil.CenterText(
+							u8(
+								"Переменные, которые можно использовать в тексте команды:"
+							)
+						)
+						for k, v in pairs(cfg.general) do
+							imgui.Text(u8("~{%s}~ -- %s"):format(k, u8(v)))
+							imgui.Separator()
+						end
+						
+						if #command.params > 0 then
+							imutil.CenterText(u8("Параметры:"))
+							for i, param in pairs(command.params) do
+								imgui.Text(u8("~{%s}~"):format(ffi.string(param.name)))
+								imgui.Separator()
+							end
+						end
+
+						if #command.menus > 0 then
+							imutil.CenterText(u8("Меню:"))
+							for i, menu in pairs(command.menus) do
+								imgui.Text(u8("~{%s}~"):format(ffi.string(menu.name)))
+								imgui.Separator()
+							end
+						end
+
+						imutil.CenterText(
+							u8(
+								"Функции, которые можно использовать в тексте команды:"
+							)
+						)
+						for i, doc in ipairs(commandloader.env_docs) do
+							local params = #doc.params > 0 and "(" .. table.concat(doc.params, ", ") .. ")" or "()"
+							imgui.Text(u8("~{%s%s}~ %s"):format(doc.name, u8(params), u8(doc.description)))
+							imgui.Separator()
+						end
+
+						if imgui.CollapsingHeader(u8("Доступные функции Lua")) then
+							if
+								imgui.Button(
+									fa.LINK .. u8(" Открыть документацию Lua"),
+									imgui.ImVec2(imutil.GetMiddleButtonX(1), 20 * MDS)
+								)
+							then
+								util.openLink("https://www.lua.org/manual/5.1/")
+							end
+							function processAllowedLuaDoc(data, prefix)
+								for i, v in ipairs(data) do
+									local fullKey = prefix and (prefix .. "." .. v.name) or v.name
+									if v.is_const then
+										imgui.Text(u8("~{%s}~ -- %s"):format(fullKey, u8(v.description)))
+										imgui.Separator()
+									end
+
+									if v.is_function then
+										local params = "(" .. table.concat(v.params or {}, ", ") .. ")"
+										imgui.Text(u8("~{%s%s}~ %s"):format(fullKey, params, u8(v.description)))
+										imgui.Separator()
+									end
+
+									if v.is_module then
+										imutil.CenterText(u8("Модуль: %s"):format(fullKey))
+										imutil.CenterText(u8(v.description))
+										processAllowedLuaDoc(v.doc, fullKey)
+									end
+								end
+							end
+							processAllowedLuaDoc(allowedLuaDoc)
+						end
+
+						imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
+						--imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetFrameHeightWithSpacing())
+						imgui.SetCursorPosY(
+							imgui.GetWindowHeight()
+								- imgui.GetStyle().FramePadding.y
+								- 30 * MDS
+								+ imgui.GetScrollY()
+						)
+						if
+							imgui.Button(
+								fa.XMARK .. u8(" Закрыть"),
+								imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
+							)
+						then
+							imgui.CloseCurrentPopup()
+						end
+						imgui.EndPopup()
+					end
+					imgui.SameLine()
+					if
+						imgui.Button(
+							fa.XMARK .. u8(" Закрыть"),
+							imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)
+						)
+					then
+						imgui.CloseCurrentPopup()
+					end
+				end
+
 				imutil.Setting(
 					u8("Текст"),
 					imutil.shortifyText(u8("Текст: %s"):format(ffi.string(command.text):gsub("\n", ""))),
 					function()
 						imgui.SetWindowSizeVec2(imgui.ImVec2(600 * MDS, 300 * MDS))
-
-						imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
-						imgui.InputTextMultiline(
-							"##commandtext",
-							command.text,
-							1024,
-							imgui.ImVec2(0, imgui.GetWindowHeight() - 70 - imgui.GetStyle().FramePadding.y * 2)
-						)
-
-						imgui.SetCursorPosY(imgui.GetWindowHeight() - 30 * MDS - imgui.GetStyle().FramePadding.y * 2)
-						if
-							imgui.Button(
-								fa.TAGS .. u8(" Переменные/Функции"),
-								imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)
-							)
-						then
-							imgui.OpenPopup(u8("Переменные/Функции"))
-						end
-
-						if
-							imgui.BeginPopupModal(
-								u8("Переменные/Функции"),
-								_,
-								imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
-							)
-						then
-							imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
-							imutil.CenterText(
-								u8(
-									"Переменные, которые можно использовать в тексте команды:"
-								)
-							)
-							imgui.Separator()
-							for k, v in pairs(cfg.general) do
-								imgui.Text(u8("~{%s}~ -- %s"):format(k, u8(v)))
-								imgui.Separator()
-							end
-
-							imutil.CenterText(
-								u8(
-									"Функции, которые можно использовать в тексте команды:"
-								)
-							)
-							imgui.Separator()
-							for i, doc in ipairs(commandloader.env_docs) do
-								local params = #doc.params > 0 and "(" .. table.concat(doc.params, ", ") .. ")" or "()"
-								imgui.Text(u8("~{%s%s}~ %s"):format(doc.name, u8(params), u8(doc.description)))
-								imgui.Separator()
-							end
-
-							if imgui.CollapsingHeader(u8("Доступные функции Lua")) then
-								if
-									imgui.Button(
-										fa.LINK .. u8(" Открыть документацию Lua"),
-										imgui.ImVec2(imutil.GetMiddleButtonX(1), 20 * MDS)
-									)
-								then
-									util.openLink("https://www.lua.org/manual/5.1/")
-								end
-								function processAllowedLuaDoc(data, prefix)
-									for i, v in ipairs(data) do
-										local fullKey = prefix and (prefix .. "." .. v.name) or v.name
-										if v.is_const then
-											imgui.Text(u8("~{%s}~ -- %s"):format(fullKey, u8(v.description)))
-											imgui.Separator()
-										end
-
-										if v.is_function then
-											local params = "(" .. table.concat(v.params or {}, ", ") .. ")"
-											imgui.Text(u8("~{%s%s}~ %s"):format(fullKey, params, u8(v.description)))
-											imgui.Separator()
-										end
-
-										if v.is_module then
-											imutil.CenterText(u8("Модуль: %s"):format(fullKey))
-											imutil.CenterText(u8(v.description))
-											processAllowedLuaDoc(v.doc, fullKey)
-										end
-									end
-								end
-								processAllowedLuaDoc(allowedLuaDoc)
-							end
-
-							imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
-							--imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetFrameHeightWithSpacing())
-							imgui.SetCursorPosY(
-								imgui.GetWindowHeight()
-									- imgui.GetStyle().FramePadding.y
-									- 30 * MDS
-									+ imgui.GetScrollY()
-							)
-							if
-								imgui.Button(
-									fa.XMARK .. u8(" Закрыть"),
-									imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
-								)
-							then
-								imgui.CloseCurrentPopup()
-							end
-							imgui.EndPopup()
-						end
-						imgui.SameLine()
-						if
-							imgui.Button(
-								fa.XMARK .. u8(" Закрыть"),
-								imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)
-							)
-						then
-							imgui.CloseCurrentPopup()
-						end
+						textEdit("texteditcmdtext"..state.currentCommand, command.text)
 					end,
 					false
 				)
 
-				imutil.CenterText(u8("Параметры"))
-				imgui.Separator()
-				imgui.Columns(4, "##params", true)
-				imgui.Text(u8("Параметр"))
-				imgui.NextColumn()
-				imgui.Text(u8("Тип"))
-				imgui.NextColumn()
-				imgui.Text(u8("По умолчанию"))
-				imgui.NextColumn()
-				imgui.Text(u8("Действие"))
-				imgui.NextColumn()
-				imgui.Separator()
-
-				for i, param in pairs(command.params) do
-					if not param.ImTypes then
-						param.types = {}
-						param.selectedType = imgui.new.int(0)
-						local i = 0
-						for k, v in pairs(commandloader.typeProcessor) do
-							table.insert(param.types, k)
-							if ffi.string(param.type) == k then
-								param.selectedType = imgui.new.int(i)
-							end
-							i = i + 1
-						end
-						param.ImTypes = imgui.new["const char*"][#param.types](param.types)
-					end
-					imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-					imgui.InputText("##paramname" .. i, param.name, 256)
+				if #command.params > 0 then
+					imutil.CenterText(u8("Параметры"))
+					imgui.Separator()
+					imgui.Columns(4, "##params", true)
+					imgui.Text(u8("Параметр"))
 					imgui.NextColumn()
-
-					imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-					imgui.Combo("##paramtype" .. i, param.selectedType, param.ImTypes, #param.types)
+					imgui.Text(u8("Тип"))
 					imgui.NextColumn()
-
-					imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-					imgui.InputText("##paramdefault" .. i, param.default, 256)
+					imgui.Text(u8("По умолчанию"))
 					imgui.NextColumn()
-					if
-						imgui.Button(
-							fa.TRASH .. "##param" .. i,
-							imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
-						)
-					then
-						table.remove(command.params, i)
-					end
+					imgui.Text(u8("Действие"))
 					imgui.NextColumn()
 					imgui.Separator()
+
+					for i, param in pairs(command.params) do
+						if not param.ImTypes then
+							param.types = {}
+							param.selectedType = imgui.new.int(0)
+							local i = 0
+							for k, v in pairs(commandloader.typeProcessor) do
+								table.insert(param.types, k)
+								if ffi.string(param.type) == k then
+									param.selectedType = imgui.new.int(i)
+								end
+								i = i + 1
+							end
+							param.ImTypes = imgui.new["const char*"][#param.types](param.types)
+						end
+						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+						imgui.InputText("##paramname" .. i, param.name, 256)
+						imgui.NextColumn()
+
+						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+						imgui.Combo("##paramtype" .. i, param.selectedType, param.ImTypes, #param.types)
+						imgui.NextColumn()
+
+						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+						imgui.InputText("##paramdefault" .. i, param.default, 256)
+						imgui.NextColumn()
+						if
+							imgui.Button(
+								fa.TRASH .. "##param" .. i,
+								imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
+							)
+						then
+							table.remove(command.params, i)
+						end
+						imgui.NextColumn()
+						imgui.Separator()
+					end
+					imgui.Columns(1)
 				end
-				imgui.Columns(1)
 				if
 					imgui.Button(
 						fa.CIRCLE_PLUS .. u8(" Добавить параметр"),
@@ -1147,14 +1175,180 @@ end, function(player)
 						default = imgui.new.char[256](),
 					})
 				end
+				if #command.menus > 0 then
+					imutil.CenterText(u8("Меню"))
+					imgui.Separator()
+					imgui.Columns(3, "##menus", true)
+					imgui.Text(u8("Меню"))
+					imgui.NextColumn()
+					imgui.Text(u8("Тип"))
+					imgui.NextColumn()
+					imgui.Text(u8("Действие"))
+					imgui.NextColumn()
+					imgui.Separator()
+
+					for i, menu in pairs(command.menus) do
+						if not menu.ImTypes then
+							menu.types = {}
+							menu.selectedType = imgui.new.int(0)
+							local i = 0
+							for k, v in pairs(commandloader.menuTypes) do
+								table.insert(menu.types, v)
+								if ffi.string(menu.type) == v then
+									menu.selectedType = imgui.new.int(i)
+								end
+								i = i + 1
+							end
+							menu.ImTypes = imgui.new["const char*"][#menu.types](menu.types)
+						end
+						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+						imgui.InputText("##menuname" .. i, menu.name, 256)
+						imgui.NextColumn()
+						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+						imgui.Combo("##menutype" .. i, menu.selectedType, menu.ImTypes, #menu.types)
+						imgui.NextColumn()
+						if
+							imgui.Button(
+								fa.TRASH .. "##menu" .. i,
+								imgui.ImVec2(imutil.GetMiddleColumnX(2), 30 * MDS)
+							)
+						then
+							table.remove(command.menus, i)
+						end
+						imgui.SameLine()
+						if
+							imgui.Button(
+								fa.PEN .. "##menu" .. i,
+								imgui.ImVec2(imutil.GetMiddleColumnX(2), 30 * MDS)
+							)
+						then
+							state.currentMenu = i
+							imgui.OpenPopup(u8("Редактирование меню"))
+						end
+
+						if imgui.BeginPopupModal(
+							u8("Редактирование меню"),
+							_,
+							imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
+						) then
+							local menu = command.menus[state.currentMenu]
+							imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
+							imutil.Setting(
+								u8("Описание"),
+								u8("Описание: %s"):format(ffi.string(menu.description)),
+								function()
+									imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+									imgui.InputText("##menudescription", menu.description, 256)
+								end
+
+							)
+							imutil.CenterText(u8("Размер окна"))
+							imgui.Separator()
+							local xlbl = u8("Ширина")
+							imgui.SetCursorPosX(imgui.GetWindowWidth() / 4 - imgui.CalcTextSize(xlbl).x / 2)
+							imgui.Text(xlbl)
+							imgui.SameLine()
+							local ylbl = u8("Высота")
+							imgui.SetCursorPosX(imgui.GetWindowWidth() / 4 * 3 - imgui.CalcTextSize(ylbl).x / 2)
+							imgui.Text(ylbl)
+
+							imgui.SetNextItemWidth(imutil.GetMiddleButtonX(2))
+							imgui.SliderInt("##sizex", menu.size.x, 100, 1000)
+							imgui.SameLine()
+							imgui.SetNextItemWidth(imutil.GetMiddleButtonX(2))
+							imgui.SliderInt("##sizey", menu.size.y, 100, 1000)
+							imgui.Separator()
+
+							if menu.types[menu.selectedType[0]+1] == commandloader.menuTypes.CHOICE then
+								if #menu.choices > 0 then
+									imutil.CenterText(u8("Варианты выбора"))
+									imgui.Separator()
+									imgui.Columns(3, "##choices", true)
+									imgui.Text(u8("Вариант"))
+									imgui.NextColumn()
+									imgui.Text(u8("Текст"))
+									imgui.NextColumn()
+									imgui.Text(u8("Действие"))
+									imgui.NextColumn()
+									imgui.Separator()
+
+									for i, choice in pairs(menu.choices) do
+										imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+										imgui.InputText("##choicename" .. i, choice.name, 256)
+										imgui.NextColumn()
+										if imgui.Button(fa.PEN .. "##choice" .. i, imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)) then
+											imgui.OpenPopup(u8("Редактирование текста варианта").."##ch"..i)
+										end
+
+										if imgui.BeginPopupModal(u8("Редактирование текста варианта").."##ch"..i, _, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove) then
+											imgui.SetWindowSizeVec2(imgui.ImVec2(600 * MDS, 300 * MDS))
+											textEdit("##texteditchoice"..i, choice.text)
+											imgui.EndPopup()
+										end
+										
+										imgui.NextColumn()
+										if
+											imgui.Button(
+												fa.TRASH .. "##choice" .. i,
+												imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
+											)
+										then
+											table.remove(menu.choices, i)
+										end
+										imgui.NextColumn()
+										imgui.Separator()
+									end
+									imgui.Columns(1)
+								end
+								if
+									imgui.Button(
+										fa.CIRCLE_PLUS .. u8(" Добавить вариант"),
+										imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
+									)
+								then
+									table.insert(menu.choices, {
+										name = imgui.new.char[256]("choice" .. #menu.choices + 1),
+										text = imgui.new.char[1024](),
+									})
+								end
+							end
+
+							imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
+							imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetStyle().FramePadding.y - 30*MDS + imgui.GetScrollY())
+							if imgui.Button(fa.FLOPPY_DISK, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
+								imgui.CloseCurrentPopup()
+							end
+							imgui.EndPopup()
+						end
+
+						imgui.NextColumn()
+						imgui.Separator()
+					end
+					imgui.Columns(1)
+				end
+				if imgui.Button(fa.CIRCLE_PLUS .. u8(" Добавить меню"), imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
+					table.insert(command.menus, {
+						name = imgui.new.char[256]("menu" .. #command.menus + 1),
+						description = imgui.new.char[256](""),
+						type = "choice",
+						size = {
+							x = imgui.new.int(200),
+							y = imgui.new.int(125),
+						},
+						choices = {},
+					})
+				end
 
 				imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
-				imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetStyle().FramePadding.y - 30 + imgui.GetScrollY())
+				imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetStyle().FramePadding.y - 30*MDS + imgui.GetScrollY())
 				if imgui.Button(fa.FLOPPY_DISK, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
 					if not util.isEmpty(ffi.string(command.name)) and not util.isEmpty(ffi.string(command.text)) then
 						for _, param in pairs(command.params) do
 							param.type = param.types[param.selectedType[0] + 1]
 							param.required = imgui.new.bool(util.isEmpty(ffi.string(param.default)))
+						end
+						for _, menu in pairs(command.menus) do
+							menu.type = menu.types[menu.selectedType[0] + 1]
 						end
 
 						commandloader.sources[state.selectedProfile] =
@@ -1170,8 +1364,63 @@ end, function(player)
 				imgui.EndPopup()
 			end
 			imgui.EndChild()
+		else
+			imgui.SetCursorPosY(imgui.GetWindowHeight() / 2)
+			imutil.CenterText(u8("Выберите профиль"))
 		end
 		imgui.EndChild()
+		imgui.EndTabItem()
+	end
+	if imgui.BeginTabItem(u8("Информация")) then
+		imutil.CenterText(u8("MonetBinder v%s"):format(script.this.version))
+		local description = u8("MonetBinder - многофункциональный биндер для Arizona RP.")
+		local descriptionWidth = imgui.CalcTextSize(description).x
+		imutil.CenterText(description)
+		local copyright = u8("© 2024 OSPx")
+		local copyWidth = imgui.CalcTextSize(copyright).x
+		local width = imgui.GetWindowWidth()
+		
+		imgui.SetCursorPosX((width / 2 - descriptionWidth / 2) + descriptionWidth - copyWidth)
+		imgui.Text(copyright)
+		imgui.Separator()
+
+		imgui.Columns(2, "##info", true)
+		imgui.Text(u8("Автор скрипта"))
+		imgui.NextColumn()
+		imgui.Text(u8("OSPx"))
+		imgui.Separator()
+
+		imgui.NextColumn()
+		imgui.Text(u8("Telegram канал"))
+		imgui.NextColumn()
+		if imgui.SmallButton(u8("t.me/monetbinder")) then
+			util.openLink("https://t.me/monetbinder")
+		end
+		imgui.Separator()
+		
+		imgui.NextColumn()
+		imgui.Text(u8("GitHub"))
+		imgui.NextColumn()
+		if imgui.SmallButton(u8("github.com/osp54/MonetBinder")) then
+			util.openLink("https://github.com/osp54/MonetBinder")
+		end
+		imgui.NextColumn()
+		imgui.Separator()
+		imgui.Columns(1)
+
+		imutil.CenterText(u8("Выбор темы интерфейса"))
+		if imgui.RadioButtonIntPtr(u8("Серая тема"), state.theme, 0) then
+			state.theme[0] = 0
+			cfg.ui.theme = 0
+			grayTheme()
+		end
+		if imgui.RadioButtonIntPtr(u8("Темная тема"), state.theme, 1) then
+			state.theme[0] = 1
+			cfg.ui.theme = 1
+			darkTheme()
+		end
+		
+
 		imgui.EndTabItem()
 	end
 
@@ -1198,11 +1447,11 @@ end, function(player)
 end)
 
 imgui.OnFrame(function()
-	return true
+	return state.menus and #state.menus > 0
 end, function(player)
 	for i, menu in ipairs(state.menus) do
 		if menu.render[0] then
-			imgui.SetNextWindowSize(imgui.ImVec2(200 * MDS, 125 * MDS), imgui.Cond.FirstUseEver)
+			imgui.SetNextWindowSize(imgui.ImVec2(menu.size.x*MDS, menu.size.y*MDS), imgui.Cond.FirstUseEver)
 			local screenX, screenY = getScreenResolution()
 
 			imgui.SetNextWindowPos(
@@ -1211,33 +1460,20 @@ end, function(player)
 				imgui.ImVec2(0.5, 0.5)
 			)
 			imgui.Begin(u8(menu.name .. "##" .. i), menu.render)
-			imgui.Separator()
-			for i, choice in ipairs(menu.choices) do
-				local middleX = imutil.GetMiddleButtonX(2)
+			imutil.CenterText(u8(menu.description))
+			if menu.type == commandloader.menuTypes.CHOICE then
+				for i, choice in ipairs(menu.choices) do
+					local isLast = i == #menu.choices
+					local isEven = i % 2 == 0
+					local middle = imutil.GetMiddleButtonX(isEven and 2 or (isLast and 1 or 2))
+					if imgui.Button(u8(choice.name), imgui.ImVec2(middle, 30 * MDS)) then
+						menu.onChoice(choice)
+						table.remove(state.menus, i)
+					end
 
-				if imgui.Button(u8(choice.name), imgui.ImVec2(middleX, 30 * MDS)) then
-					lua_thread.create(function()
-						local i = 1
-						for line in string.gmatch(choice.text, "[^\r\n]+") do
-							if state.waitm then
-								wait(state.waitm)
-							elseif i > 1 then
-								wait(cfg.general.default_delay)
-							end
-
-							if not util.isEmpty(line) then
-								sampProcessChatInput(line)
-							end
-
-							i = i + 1
-						end
-					end)
-					menu.render[0] = false
-					table.remove(state.menus, i)
-				end
-
-				if i % 2 ~= 0 then
-					imgui.SameLine()
+					if not isEven then
+						imgui.SameLine()
+					end
 				end
 			end
 			imgui.End()
@@ -1371,91 +1607,176 @@ function generateUsage(cmd, params)
 	return usage
 end
 
----Author: Chapo
 function darkTheme()
+    imgui.SwitchContext()
+    --==[ STYLE ]==--
+    imgui.GetStyle().WindowPadding = imgui.ImVec2(5, 5)
+    imgui.GetStyle().FramePadding = imgui.ImVec2(5, 5)
+    imgui.GetStyle().ItemSpacing = imgui.ImVec2(5, 5)
+    imgui.GetStyle().ItemInnerSpacing = imgui.ImVec2(2, 2)
+    imgui.GetStyle().TouchExtraPadding = imgui.ImVec2(0, 0)
+    imgui.GetStyle().IndentSpacing = 0
+    imgui.GetStyle().ScrollbarSize = 10
+    imgui.GetStyle().GrabMinSize = 10
+    local scsize = imgui.GetStyle().ScrollbarSize
+    imgui.GetStyle().ScrollbarSize = scsize + scsize / 2
+
+    --==[ BORDER ]==--
+    imgui.GetStyle().WindowBorderSize = 1
+    imgui.GetStyle().ChildBorderSize = 1
+    imgui.GetStyle().PopupBorderSize = 1
+    imgui.GetStyle().FrameBorderSize = 1
+    imgui.GetStyle().TabBorderSize = 1
+
+    --==[ ROUNDING ]==--
+    imgui.GetStyle().WindowRounding = 5
+    imgui.GetStyle().ChildRounding = 5
+    imgui.GetStyle().FrameRounding = 5
+    imgui.GetStyle().PopupRounding = 5
+    imgui.GetStyle().ScrollbarRounding = 5
+    imgui.GetStyle().GrabRounding = 5
+    imgui.GetStyle().TabRounding = 5
+
+    --==[ ALIGN ]==--
+    imgui.GetStyle().WindowTitleAlign = imgui.ImVec2(0.5, 0.5)
+    imgui.GetStyle().ButtonTextAlign = imgui.ImVec2(0.5, 0.5)
+    imgui.GetStyle().SelectableTextAlign = imgui.ImVec2(0.5, 0.5)
+
+    --==[ COLORS ]==--
+    imgui.GetStyle().Colors[imgui.Col.Text] = imgui.ImVec4(1.00, 1.00, 1.00, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TextDisabled] = imgui.ImVec4(0.70, 0.70, 0.70, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.WindowBg] = imgui.ImVec4(0.05, 0.05, 0.05, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ChildBg] = imgui.ImVec4(0.05, 0.05, 0.05, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PopupBg] = imgui.ImVec4(0.05, 0.05, 0.05, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Border] = imgui.ImVec4(0.25, 0.25, 0.26, 0.54)
+    imgui.GetStyle().Colors[imgui.Col.BorderShadow] = imgui.ImVec4(0.00, 0.00, 0.00, 0.00)
+    imgui.GetStyle().Colors[imgui.Col.FrameBg] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.FrameBgHovered] = imgui.ImVec4(0.25, 0.25, 0.26, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.FrameBgActive] = imgui.ImVec4(0.25, 0.25, 0.26, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TitleBg] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TitleBgActive] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TitleBgCollapsed] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.MenuBarBg] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarBg] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarGrab] = imgui.ImVec4(0.20, 0.20, 0.20, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarGrabHovered] = imgui.ImVec4(0.30, 0.30, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarGrabActive] = imgui.ImVec4(0.40, 0.40, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.CheckMark] = imgui.ImVec4(1.00, 1.00, 1.00, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.SliderGrab] = imgui.ImVec4(0.20, 0.20, 0.20, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.SliderGrabActive] = imgui.ImVec4(0.30, 0.30, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Button] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ButtonHovered] = imgui.ImVec4(0.25, 0.25, 0.26, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ButtonActive] = imgui.ImVec4(0.40, 0.40, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Header] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.HeaderHovered] = imgui.ImVec4(0.20, 0.20, 0.20, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.HeaderActive] = imgui.ImVec4(0.47, 0.47, 0.47, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Separator] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.SeparatorHovered] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.SeparatorActive] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ResizeGrip] = imgui.ImVec4(1.00, 1.00, 1.00, 0.25)
+    imgui.GetStyle().Colors[imgui.Col.ResizeGripHovered] = imgui.ImVec4(1.00, 1.00, 1.00, 0.67)
+    imgui.GetStyle().Colors[imgui.Col.ResizeGripActive] = imgui.ImVec4(1.00, 1.00, 1.00, 0.95)
+    imgui.GetStyle().Colors[imgui.Col.Tab] = imgui.ImVec4(0.15, 0.15, 0.15, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabHovered] = imgui.ImVec4(0.28, 0.28, 0.28, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabActive] = imgui.ImVec4(0.30, 0.30, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabUnfocused] = imgui.ImVec4(0.07, 0.10, 0.15, 0.97)
+    imgui.GetStyle().Colors[imgui.Col.TabUnfocusedActive] = imgui.ImVec4(0.14, 0.26, 0.42, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PlotLines] = imgui.ImVec4(0.61, 0.61, 0.61, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PlotLinesHovered] = imgui.ImVec4(1.00, 0.43, 0.35, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PlotHistogram] = imgui.ImVec4(0.90, 0.70, 0.00, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PlotHistogramHovered] = imgui.ImVec4(1.00, 0.60, 0.00, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TextSelectedBg] = imgui.ImVec4(1.00, 0.00, 0.00, 0.35)
+    imgui.GetStyle().Colors[imgui.Col.DragDropTarget] = imgui.ImVec4(1.00, 1.00, 0.00, 0.90)
+    imgui.GetStyle().Colors[imgui.Col.NavHighlight] = imgui.ImVec4(0.26, 0.59, 0.98, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.NavWindowingHighlight] = imgui.ImVec4(1.00, 1.00, 1.00, 0.70)
+    imgui.GetStyle().Colors[imgui.Col.NavWindowingDimBg] = imgui.ImVec4(0.80, 0.80, 0.80, 0.20)
+    imgui.GetStyle().Colors[imgui.Col.ModalWindowDimBg] = imgui.ImVec4(0.00, 0.00, 0.00, 0.70)
+end
+
+function grayTheme()
 	imgui.SwitchContext()
-	--==[ STYLE ]==--
-	imgui.GetStyle().WindowPadding = imgui.ImVec2(5, 5)
-	imgui.GetStyle().FramePadding = imgui.ImVec2(5, 5)
-	imgui.GetStyle().ItemSpacing = imgui.ImVec2(5, 5)
-	imgui.GetStyle().ItemInnerSpacing = imgui.ImVec2(2, 2)
-	imgui.GetStyle().TouchExtraPadding = imgui.ImVec2(0, 0)
-	imgui.GetStyle().IndentSpacing = 0
-	imgui.GetStyle().ScrollbarSize = 10
-	imgui.GetStyle().GrabMinSize = 10
-	local scsize = imgui.GetStyle().ScrollbarSize
-	imgui.GetStyle().ScrollbarSize = scsize + scsize / 2
+    --==[ STYLE ]==--
+    imgui.GetStyle().WindowPadding = imgui.ImVec2(5, 5)
+    imgui.GetStyle().FramePadding = imgui.ImVec2(5, 5)
+    imgui.GetStyle().ItemSpacing = imgui.ImVec2(5, 5)
+    imgui.GetStyle().ItemInnerSpacing = imgui.ImVec2(2, 2)
+    imgui.GetStyle().TouchExtraPadding = imgui.ImVec2(0, 0)
+    imgui.GetStyle().IndentSpacing = 0
+    imgui.GetStyle().ScrollbarSize = 10
+    imgui.GetStyle().GrabMinSize = 10
+    local scsize = imgui.GetStyle().ScrollbarSize
+    imgui.GetStyle().ScrollbarSize = scsize + scsize / 2
 
-	--==[ BORDER ]==--
-	imgui.GetStyle().WindowBorderSize = 1
-	imgui.GetStyle().ChildBorderSize = 1
-	imgui.GetStyle().PopupBorderSize = 1
-	imgui.GetStyle().FrameBorderSize = 1
-	imgui.GetStyle().TabBorderSize = 1
+    --==[ BORDER ]==--
+    imgui.GetStyle().WindowBorderSize = 1
+    imgui.GetStyle().ChildBorderSize = 1
+    imgui.GetStyle().PopupBorderSize = 1
+    imgui.GetStyle().FrameBorderSize = 1
+    imgui.GetStyle().TabBorderSize = 1
 
-	--==[ ROUNDING ]==--
-	imgui.GetStyle().WindowRounding = 5
-	imgui.GetStyle().ChildRounding = 5
-	imgui.GetStyle().FrameRounding = 5
-	imgui.GetStyle().PopupRounding = 5
-	imgui.GetStyle().ScrollbarRounding = 5
-	imgui.GetStyle().GrabRounding = 5
-	imgui.GetStyle().TabRounding = 5
+    --==[ ROUNDING ]==--
+    imgui.GetStyle().WindowRounding = 8
+    imgui.GetStyle().ChildRounding = 8
+    imgui.GetStyle().FrameRounding = 8
+    imgui.GetStyle().PopupRounding = 8
+    imgui.GetStyle().ScrollbarRounding = 8
+    imgui.GetStyle().GrabRounding = 8
+    imgui.GetStyle().TabRounding = 8
 
-	--==[ ALIGN ]==--
-	imgui.GetStyle().WindowTitleAlign = imgui.ImVec2(0.5, 0.5)
-	imgui.GetStyle().ButtonTextAlign = imgui.ImVec2(0.5, 0.5)
-	imgui.GetStyle().SelectableTextAlign = imgui.ImVec2(0.5, 0.5)
+    --==[ ALIGN ]==--
+    imgui.GetStyle().WindowTitleAlign = imgui.ImVec2(0.5, 0.5)
+    imgui.GetStyle().ButtonTextAlign = imgui.ImVec2(0.5, 0.5)
+    imgui.GetStyle().SelectableTextAlign = imgui.ImVec2(0.5, 0.5)
 
-	--==[ COLORS ]==--
-	imgui.GetStyle().Colors[imgui.Col.Text] = imgui.ImVec4(1.00, 1.00, 1.00, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.TextDisabled] = imgui.ImVec4(0.50, 0.50, 0.50, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.WindowBg] = imgui.ImVec4(0.07, 0.07, 0.07, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.ChildBg] = imgui.ImVec4(0.07, 0.07, 0.07, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.PopupBg] = imgui.ImVec4(0.07, 0.07, 0.07, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.Border] = imgui.ImVec4(0.25, 0.25, 0.26, 0.54)
-	imgui.GetStyle().Colors[imgui.Col.BorderShadow] = imgui.ImVec4(0.00, 0.00, 0.00, 0.00)
-	imgui.GetStyle().Colors[imgui.Col.FrameBg] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.FrameBgHovered] = imgui.ImVec4(0.25, 0.25, 0.26, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.FrameBgActive] = imgui.ImVec4(0.25, 0.25, 0.26, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.TitleBg] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.TitleBgActive] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.TitleBgCollapsed] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.MenuBarBg] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.ScrollbarBg] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.ScrollbarGrab] = imgui.ImVec4(0.00, 0.00, 0.00, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.ScrollbarGrabHovered] = imgui.ImVec4(0.41, 0.41, 0.41, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.ScrollbarGrabActive] = imgui.ImVec4(0.51, 0.51, 0.51, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.CheckMark] = imgui.ImVec4(1.00, 1.00, 1.00, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.SliderGrab] = imgui.ImVec4(0.21, 0.20, 0.20, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.SliderGrabActive] = imgui.ImVec4(0.21, 0.20, 0.20, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.Button] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.ButtonHovered] = imgui.ImVec4(0.21, 0.20, 0.20, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.ButtonActive] = imgui.ImVec4(0.41, 0.41, 0.41, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.Header] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.HeaderHovered] = imgui.ImVec4(0.20, 0.20, 0.20, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.HeaderActive] = imgui.ImVec4(0.47, 0.47, 0.47, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.Separator] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.SeparatorHovered] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.SeparatorActive] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.ResizeGrip] = imgui.ImVec4(1.00, 1.00, 1.00, 0.25)
-	imgui.GetStyle().Colors[imgui.Col.ResizeGripHovered] = imgui.ImVec4(1.00, 1.00, 1.00, 0.67)
-	imgui.GetStyle().Colors[imgui.Col.ResizeGripActive] = imgui.ImVec4(1.00, 1.00, 1.00, 0.95)
-	imgui.GetStyle().Colors[imgui.Col.Tab] = imgui.ImVec4(0.12, 0.12, 0.12, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.TabHovered] = imgui.ImVec4(0.28, 0.28, 0.28, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.TabActive] = imgui.ImVec4(0.30, 0.30, 0.30, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.TabUnfocused] = imgui.ImVec4(0.07, 0.10, 0.15, 0.97)
-	imgui.GetStyle().Colors[imgui.Col.TabUnfocusedActive] = imgui.ImVec4(0.14, 0.26, 0.42, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.PlotLines] = imgui.ImVec4(0.61, 0.61, 0.61, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.PlotLinesHovered] = imgui.ImVec4(1.00, 0.43, 0.35, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.PlotHistogram] = imgui.ImVec4(0.90, 0.70, 0.00, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.PlotHistogramHovered] = imgui.ImVec4(1.00, 0.60, 0.00, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.TextSelectedBg] = imgui.ImVec4(1.00, 0.00, 0.00, 0.35)
-	imgui.GetStyle().Colors[imgui.Col.DragDropTarget] = imgui.ImVec4(1.00, 1.00, 0.00, 0.90)
-	imgui.GetStyle().Colors[imgui.Col.NavHighlight] = imgui.ImVec4(0.26, 0.59, 0.98, 1.00)
-	imgui.GetStyle().Colors[imgui.Col.NavWindowingHighlight] = imgui.ImVec4(1.00, 1.00, 1.00, 0.70)
-	imgui.GetStyle().Colors[imgui.Col.NavWindowingDimBg] = imgui.ImVec4(0.80, 0.80, 0.80, 0.20)
-	imgui.GetStyle().Colors[imgui.Col.ModalWindowDimBg] = imgui.ImVec4(0.00, 0.00, 0.00, 0.70)
+    --==[ COLORS ]==--
+    imgui.GetStyle().Colors[imgui.Col.Text] = imgui.ImVec4(0.90, 0.90, 0.90, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TextDisabled] = imgui.ImVec4(0.70, 0.70, 0.70, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.WindowBg] = imgui.ImVec4(0.15, 0.20, 0.25, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ChildBg] = imgui.ImVec4(0.15, 0.20, 0.25, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PopupBg] = imgui.ImVec4(0.15, 0.20, 0.25, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Border] = imgui.ImVec4(5, 39, 29, 0.2) -- серый цвет для бордеров
+    imgui.GetStyle().Colors[imgui.Col.BorderShadow] = imgui.ImVec4(0.00, 0.00, 0.00, 0.00)
+    imgui.GetStyle().Colors[imgui.Col.FrameBg] = imgui.ImVec4(0.20, 0.25, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.FrameBgHovered] = imgui.ImVec4(0.25, 0.30, 0.35, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.FrameBgActive] = imgui.ImVec4(0.30, 0.35, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TitleBg] = imgui.ImVec4(0.15, 0.20, 0.25, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TitleBgActive] = imgui.ImVec4(0.20, 0.25, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TitleBgCollapsed] = imgui.ImVec4(0.15, 0.20, 0.25, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.MenuBarBg] = imgui.ImVec4(0.15, 0.20, 0.25, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarBg] = imgui.ImVec4(0.20, 0.25, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarGrab] = imgui.ImVec4(0.40, 0.45, 0.50, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarGrabHovered] = imgui.ImVec4(0.45, 0.50, 0.55, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ScrollbarGrabActive] = imgui.ImVec4(0.50, 0.55, 0.60, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.CheckMark] = imgui.ImVec4(0.90, 0.90, 0.90, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.SliderGrab] = imgui.ImVec4(0.40, 0.45, 0.50, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.SliderGrabActive] = imgui.ImVec4(0.50, 0.55, 0.60, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Button] = imgui.ImVec4(0.20, 0.25, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ButtonHovered] = imgui.ImVec4(0.25, 0.30, 0.35, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ButtonActive] = imgui.ImVec4(0.30, 0.35, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Header] = imgui.ImVec4(0.20, 0.25, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.HeaderHovered] = imgui.ImVec4(0.25, 0.30, 0.35, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.HeaderActive] = imgui.ImVec4(0.30, 0.35, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Separator] = imgui.ImVec4(5, 39, 29, 0.2)
+    imgui.GetStyle().Colors[imgui.Col.SeparatorHovered] = imgui.ImVec4(5, 39, 29, 0.2)
+    imgui.GetStyle().Colors[imgui.Col.SeparatorActive] = imgui.ImVec4(5, 39, 29, 0.2)
+    imgui.GetStyle().Colors[imgui.Col.ResizeGrip] = imgui.ImVec4(0.40, 0.45, 0.50, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ResizeGripHovered] = imgui.ImVec4(0.45, 0.50, 0.55, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.ResizeGripActive] = imgui.ImVec4(0.50, 0.55, 0.60, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.Tab] = imgui.ImVec4(0.15, 0.20, 0.25, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabHovered] = imgui.ImVec4(0.25, 0.30, 0.35, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabActive] = imgui.ImVec4(0.30, 0.35, 0.40, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabUnfocused] = imgui.ImVec4(0.15, 0.20, 0.25, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TabUnfocusedActive] = imgui.ImVec4(0.20, 0.25, 0.30, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PlotLines] = imgui.ImVec4(0.61, 0.61, 0.61, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PlotLinesHovered] = imgui.ImVec4(1.00, 0.43, 0.35, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PlotHistogram] = imgui.ImVec4(0.90, 0.70, 0.00, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.PlotHistogramHovered] = imgui.ImVec4(1.00, 0.60, 0.00, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.TextSelectedBg] = imgui.ImVec4(0.80, 0.95, 0.87, 0.35)
+    imgui.GetStyle().Colors[imgui.Col.DragDropTarget] = imgui.ImVec4(0.80, 0.95, 0.87, 0.90)
+    imgui.GetStyle().Colors[imgui.Col.NavHighlight] = imgui.ImVec4(0.26, 0.59, 0.98, 1.00)
+    imgui.GetStyle().Colors[imgui.Col.NavWindowingHighlight] = imgui.ImVec4(1.00, 1.00, 1.00, 0.70)
+    imgui.GetStyle().Colors[imgui.Col.NavWindowingDimBg] = imgui.ImVec4(0.80, 0.80, 0.80, 0.20)
+    imgui.GetStyle().Colors[imgui.Col.ModalWindowDimBg] = imgui.ImVec4(0.00, 0.00, 0.00, 0.70)
 end
 
 function onScriptTerminate(script, quitGame)

@@ -2,6 +2,13 @@ if not MONET_VERSION then
     return setmetatable({}, {__index = function() return function() end end})
 end
 
+local debug = false
+local function logf(fmt, ...)
+    if debug then
+        print(string.format(fmt, ...))
+    end
+end
+
 local ffi = require("ffi")
  
 ffi.cdef[[
@@ -491,12 +498,16 @@ function JNI:throwable2string(throwable)
     return self:to_luastring(message)
 end
  
-function JNI:checkForJNIException()
+function JNI:checkForJNIException(skip)
     if self.env[0].ExceptionCheck(self.env) == C.JNI_TRUE then
         self.env[0].ExceptionDescribe(self.env)
         self.env[0].ExceptionClear(self.env)
-        error("JNI exception occurred")
+        if not skip then
+            error("JNI exception")
+        end
+        return true
     end
+    return false
 end
  
 function JNI:callVoidMethod(object, method, signature, ...)
@@ -559,34 +570,34 @@ end
  
 function JNI:callObjectMethod(object, method, signature, ...)
     local clazz = self.env[0].GetObjectClass(self.env, object)
-    print("Class: " .. tostring(clazz))
+    logf("Class: " .. tostring(clazz))
     local methodID = self.env[0].GetMethodID(self.env, clazz, method, signature)
-    print("MethodID: " .. tostring(methodID))
+    logf("MethodID: " .. tostring(methodID))
     local obj = self.env[0].CallObjectMethod(self.env, object, methodID, ...)
-    print("Result: " .. tostring(obj))
+    logf("Result: " .. tostring(obj))
     self.env[0].DeleteLocalRef(self.env, clazz)
     return obj
 end
  
 function JNI:callStaticObjectMethod(class, method, signature, ...)
-    print("Class: " .. tostring(class))
+    logf("Class: " .. tostring(class))
     local clazz = self:findClass(class)
-    print("Clazz: " .. tostring(clazz))
+    logf("Clazz: " .. tostring(clazz))
  
     local methodID = self.env[0].GetStaticMethodID(self.env, clazz, method, signature)
-    print("MethodID: " .. tostring(methodID))
+    logf("MethodID: " .. tostring(methodID))
  
     local res = self.env[0].CallStaticObjectMethod(self.env, clazz, methodID, ...)
-    print("Result: " .. tostring(res))
+    logf("Result: " .. tostring(res))
     return res
 end
  
 function JNI:getStaticObjectField(class, field, signature)
-    print("Class: " .. tostring(class))
+    logf("Class: " .. tostring(class))
     local clazz = self:findClass(class)
-    print("Clazz: " .. tostring(clazz))
+    logf("Clazz: " .. tostring(clazz))
     local fieldID = self.env[0].GetStaticFieldID(self.env, clazz, field, signature)
-    print("FieldID: " .. tostring(fieldID))
+    logf("FieldID: " .. tostring(fieldID))
  
     local obj = self.env[0].GetStaticObjectField(self.env, clazz, fieldID)
     return obj
@@ -696,5 +707,5 @@ function JNI:looperPrepare()
         self:callStaticVoidMethod("android/os/Looper", "prepare", "()V")
     end
 end
- 
+
 return JNI

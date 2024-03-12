@@ -108,6 +108,17 @@ CommandLoader.typeProcessor = {
 	["string"] = function(param)
 		return param
 	end,
+	["vararg"] = function(param)
+		return param
+	end,
+}
+
+CommandLoader.rusTypes = {
+	["player"] = u8"игрок",
+	["number"] = u8"число",
+	["bool"] = u8"логическое значение",
+	["string"] = u8"строка",
+	["vararg"] = u8"аргумент переменной длины",
 }
 
 CommandLoader.env = {
@@ -120,7 +131,7 @@ CommandLoader.env = {
 	["date"] = function()
 		return os.date("%d.%m.%Y")
 	end,
-	["sex"] = function()
+	["sexx"] = function()
 		return cfg.general.sex == "Мужской" and "" or "а"
 	end,
 	["my_gun"] = function()
@@ -274,29 +285,36 @@ CommandLoader.env = {
 }
 CommandLoader.env_docs = {
 	{
+		name="concat_params",
+		description="Склеивает параметры в строку, начиная с N и заканчивая N2(по умолчанию до конца параметров)",
+		params={"начало?", "конец?"},
+		paste = "~{concat_params(1, 3)}~"
+	},
+	{
 		name="wait",
 		description="Ждать N миллисекунд",
-		params={"мс"}
+		params={"мс"},
+		paste = "~{wait(1000)}~"
 	},
 	{
 		name="time",
 		description="Возвращает текущее время",
-		params={}
+		params={},
 	},
 	{
 		name="date",
 		description="Возвращает текущую дату",
-		params={}
+		params={},
 	},
 	{
 		name="sex",
 		description="Возвращает а если пол персонажа женский, иначе пустую строку",
-		params={}
+		params={},
 	},
 	{
 		name="my_gun",
 		description="Возвращает ID оружия игрока",
-		params={}
+		params={},
 	},
 	{
 		name="my_gun_weapon",
@@ -371,7 +389,8 @@ CommandLoader.env_docs = {
 	{
 		name="random",
 		description="Возвращает случайное число в диапазоне от N до N2",
-		params={"N", "N2"}
+		params={"N", "N2"},
+		paste = "~{random(1, 10)}~"
 	},
 	{
 		name="city",
@@ -381,47 +400,56 @@ CommandLoader.env_docs = {
 	{
 		name="nickid",
 		description="Возвращает ник игрока по ID",
-		params={"ID"}
+		params={"ID"},
+		paste = "~{nickid(1)}~"
 	},
 	{
 		name="rpnickid",
 		description="Возвращает RP-ник игрока по ID",
-		params={"ID"}
+		params={"ID"},
+		paste = "~{rpnickid(1)}~"
 	},
 	{
 		name="carid",
 		description="Возвращает название машины игрока по ID",
-		params={"ID"}
+		params={"ID"},
+		paste = "~{carid(1)}~"
 	},
 	{
 		name="carcolorid",
 		description="Возвращает цвет машины игрока по ID",
-		params={"ID"}
+		params={"ID"},
+		paste = "~{carcolorid(1)}~"
 	},
 	{
 		name="inflectcolor",
 		description="Склоняет название цвета",
-		params={"цвет"}
+		params={"цвет"},
+		paste = "~{inflectcolor(\"красный\")}~"
 	},
 	{
 		name="car_id_nearest",
 		description="Возвращает ID ближайшей машины",
-		params={"радиус?", "максимальное количество игроков вокруг машины?"}
+		params={"радиус?", "максимальное количество игроков вокруг машины?"},
+		paste = "~{car_id_nearest(50)}~"
 	},
 	{
 		name="car_driver_id",
 		description="Возвращает ID водителя машины",
-		params={"ID машины"}
+		params={"ID машины"},
+		paste = "~{car_driver_id(1)}~"
 	},
 	{
 		name="player_id_nearest",
 		description="Возвращает ID ближайшего игрока",
-		params={"радиус"}
+		params={"радиус"},
+		paste = "~{player_id_nearest(50)}~"
 	},
 	{
 		name="openMenu",
 		description="Открывает меню",
-		params={"имя меню"}
+		params={"имя меню"},
+		paste = "~{openMenu(\"Меню\")}~"
 	},
 }
 
@@ -482,11 +510,9 @@ function CommandLoader.toMimguiTable(source)
 				y = imgui.new.int(menu.size.y),
 			}
 			m.type = imgui.new.char[128](menu.type)
-			print(menu.type)
 			if menu.type == CommandLoader.menuTypes.CHOICE then
 				m.choices = {}
 				for _, choice in ipairs(menu.choices) do
-					print(choice.name, choice.text)
 					local c = {}
 					c.name = imgui.new.char[128](u8(choice.name))
 					c.text = imgui.new.char[1024](u8(choice.text))
@@ -714,6 +740,7 @@ function CommandLoader.saveSource(source)
 		return
 	end
 
+	source.filepath = nil
 	local data = encodeJson(source)
 	file:write(data)
 	file:close()
@@ -751,9 +778,11 @@ function CommandLoader.registerCommands()
 	for _, source in ipairs(CommandLoader.sources) do
 		for _, cmd in ipairs(source.commands) do
 			if source.enabled and not cmd.hasErrors and cmd.enabled then
-				local reg = sampRegisterChatCommand(cmd.name, function(params)
+				sampRegisterChatCommand(cmd.name, function(params)
 					local args = {}
 					local aparam = string.gmatch(params, "[^%s]+")
+					local vararg = false
+					local varargname = nil
 					for _, pdata in pairs(cmd.params) do
 						local ap = aparam()
 
@@ -768,6 +797,13 @@ function CommandLoader.registerCommands()
 							break
 						end
 
+						if pdata.type == "vararg" then
+							args[pdata.name] = ap
+							vararg = true
+							varargname = pdata.name
+							break
+						end
+
 						local proc = CommandLoader.typeProcessor[pdata.type]
 
 						local arg, err = proc(ap)
@@ -778,6 +814,12 @@ function CommandLoader.registerCommands()
 
 						args[pdata.name] = arg
 					end
+					if vararg then
+						for ap in aparam do
+							args[varargname] = args[varargname] .. " " .. ap
+						end
+					end
+				
 
 					local env = util.merge(args, cfg.general, CommandLoader.env)
 
@@ -837,10 +879,22 @@ function CommandLoader.registerCommands()
 						end
 					end
 
+					function env.concatParams(start, finish)
+						local start = start or 1
+						local finish = finish or #args
+
+						local result = ""
+						for i = start, finish do
+							result = result .. args[i] .. " "
+						end
+
+						return result
+					end
+
 					lua_thread.create(function()
 						processLines(cmd.text)
 					end)
-				end)
+				end, cmd.vararg) -- Add cmd.vararg as the last argument to sampRegisterChatCommand
 			end
 		end
 	end

@@ -12,4 +12,4 @@ Module "src.imgui_util"
 Module "src.doubleclickped"
 Module "src.commandloader"
 
-Output "./dist/MonetBinder_v1.1.4.lua"
+Output "./dist/MonetBinder_v1.2.lua"

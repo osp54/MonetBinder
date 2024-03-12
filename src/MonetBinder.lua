@@ -1,4 +1,4 @@
-local version = "1.1"
+local version = "1.2"
 
 script_name("MonetBinder v" .. version)
 script_author("OSPx")
@@ -13,6 +13,10 @@ ffi = require("ffi")
 lfs = require("lfs")
 imgui = require("mimgui")
 
+encoding = require("encoding")
+encoding.default = "CP1251"
+u8 = encoding.UTF8
+
 jsoncfg = require("lib.jsoncfg")
 android = require("lib.android")
 
@@ -22,9 +26,6 @@ doubleclickped = require("src.doubleclickped")
 commandloader = require("src.commandloader")
 
 fa = require("fAwesome6_solid")
-encoding = require("encoding")
-encoding.default = "CP1251"
-u8 = encoding.UTF8
 
 cfg = {
 	general = {
@@ -34,6 +35,9 @@ cfg = {
 		rank = "",
 		rank_number = 0,
 		sex = "Мужчина",
+	},
+	features = {
+		fast_menu = true,
 	},
 	ui = {
 		theme = 0,
@@ -55,6 +59,7 @@ local function mimguiState()
 	state.mainMenuMenuPos = imgui.ImVec2(0, 0)
 	state.renderFastMenu = imgui.new.bool(false)
 
+	state.fastMenuEnabled = imgui.new.bool(cfg.features.fast_menu)
 	state.fastMenuPlayerId = nil
 	state.fastMenuPos = imgui.ImVec2(0, 0)
 
@@ -68,7 +73,7 @@ local function mimguiState()
 	state.rankNumberInput = imgui.new.int(cfg.general.rank_number - 1)
 
 	state.monetBinderButton = imgui.new.bool(cfg.ui.monet_binder_button)
-	state.monetBinderButtonMove = false
+	state.monetBinderButtonMove = imgui.new.bool(false)
 
 	state.theme = imgui.new.int(cfg.ui.theme)
 
@@ -522,6 +527,10 @@ end
 state = mimguiState()
 
 doubleclickped.onDoubleClickedPed = function(ped, x, y)
+	if not state.fastMenuEnabled[0] then
+		return
+	end
+
 	local res, id = sampGetPlayerIdByCharHandle(ped)
 
 	if res then
@@ -552,7 +561,7 @@ imgui.OnInitialize(function()
 	end
 end)
 
-imgui.OnFrame(function()
+local mainMenu = imgui.OnFrame(function()
 	return state.renderMainMenu[0]
 end, function(player)
 	local screenX, screenY = getScreenResolution()
@@ -609,29 +618,16 @@ end, function(player)
 				imgui.Combo("##ranknumber", state.rankNumberInput, state.ImRanks, #state.ranks)
 			end
 		)
-		local buttonlbl = u8(" Кнопка MonetBinder")
-		if
-			imutil.ToggleButtonIcon(
-				fa.TOGGLE_ON .. buttonlbl,
-				fa.TOGGLE_OFF .. buttonlbl,
-				cfg.ui.monet_binder_button,
-				imgui.ImVec2(imutil.GetMiddleButtonX(2), 30)
-			)
-		then
-			cfg.ui.monet_binder_button = not cfg.ui.monet_binder_button
-			state.monetBinderButton[0] = cfg.ui.monet_binder_button
+		if imutil.ToggleButton(u8(" Кнопка MonetBinder"), state.monetBinderButton) then
+			cfg.ui.monet_binder_button = state.monetBinderButton[0]
 		end
 		imgui.SameLine()
-		local buttonmovelbl = u8(" Перемещение кнопки")
-		if
-			imutil.ToggleButtonIcon(
-				fa.TOGGLE_ON .. buttonmovelbl,
-				fa.TOGGLE_OFF .. buttonmovelbl,
-				state.monetBinderButtonMove,
-				imgui.ImVec2(imutil.GetMiddleButtonX(2), 30)
-			)
-		then
-			state.monetBinderButtonMove = not state.monetBinderButtonMove
+		imgui.SetCursorPosX(imgui.GetWindowWidth() / 2 - imgui.GetStyle().FramePadding.x * 2)
+		if imutil.ToggleButton(u8(" Перемещение кнопки"), state.monetBinderButtonMove) then
+			cfg.ui.monet_binder_button_move = state.monetBinderButtonMove[0]
+		end
+		if imutil.ToggleButton(u8"Фаст-Меню по двойному-клику", state.fastMenuEnabled) then
+			cfg.features.fast_menu = state.fastMenuEnabled[0]
 		end
 
 		if isGeneralSettingsChanged() then
@@ -726,10 +722,12 @@ end, function(player)
 						imgui.ProgressBar(source.download_progress_percent / 100, imgui.ImVec2(-1, 15 * MDS))
 						imgui.Columns(4, "##sources", true)
 
-						if source.downloaded_at + 5 < os.time() then
+						if source.downloaded_at and source.downloaded_at + 1 < os.time() then
 							source.downloaded_at = nil
 							source.download_progress_percent = nil
 							source.downloaded = nil
+							state.sources_meta = nil
+							state.sources_meta_loading = false
 						end
 					end
 					imgui.Text(source.name)
@@ -831,16 +829,14 @@ end, function(player)
 		local source = commandloader.sources[state.selectedProfile]
 		if source and state.currentMsource then
 			if imgui.Button(fa.TRASH, imgui.ImVec2(imutil.GetMiddleButtonX(3), 30 * MDS)) then
+				imgui.OpenPopup(u8("Удаление профиля"))
+			end
+			if imutil.ConfirmationPopup(u8("Удаление профиля"), u8("Вы уверены?")) then
 				commandloader.removeSource(source)
 				commandloader.sources[state.selectedProfile] = nil
 
-				if #commandloader.sources > 0 then
-					state.selectedProfile = 1
-					state.currentMsource = commandloader.toMimguiTable(commandloader.sources[state.selectedProfile])
-				else
-					state.currentMsource = nil
-					state.selectedProfile = 0
-				end
+				state.currentMsource = nil
+				state.selectedProfile = 0
 			end
 			if not state.currentMsource then
 				imgui.EndChild()
@@ -928,20 +924,23 @@ end, function(player)
 					command.enabled[0] = not command.enabled[0]
 				end
 				imgui.SameLine()
-				if imgui.Button(fa.TRASH .. "##" .. cmdname, imgui.ImVec2(imutil.GetMiddleColumnX(3), 30 * MDS)) then
+				if imgui.Button(fa.TRASH .. "##" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(3), 30 * MDS)) then
+					imgui.OpenPopup(u8("Удаление команды##"..i))
+				end
+				if imutil.ConfirmationPopup(u8("Удаление команды##"..i), u8("Вы уверены?")) then
 					table.remove(state.currentMsource.commands, i)
 				end
 				imgui.SameLine()
-				if imgui.Button(fa.PEN .. "##" .. cmdname, imgui.ImVec2(imutil.GetMiddleColumnX(3), 30 * MDS)) then
+				if imgui.Button(fa.PEN .. "##" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(3), 30 * MDS)) then
 					state.currentCommand = i
-					imgui.OpenPopup(u8("Редактирование команды"))
+					imgui.OpenPopup(u8("Редактирование команды##"..i))
 				end
 				imgui.NextColumn()
 				imgui.Separator()
 			end
-			if
+			if	state.currentCommand and
 				imgui.BeginPopupModal(
-					u8("Редактирование команды"),
+					u8("Редактирование команды##"..state.currentCommand),
 					_,
 					imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
 				)
@@ -984,6 +983,12 @@ end, function(player)
 						imgui.ImVec2(0, imgui.GetWindowHeight() - 70 * MDS - imgui.GetStyle().FramePadding.y * 2)
 					)
 
+					function appendText(atext)
+						local rtext = u8:decode(ffi.string(command.text))
+						rtext = rtext .. atext
+						ffi.copy(text, u8(rtext))
+					end
+
 					imgui.SetCursorPosY(imgui.GetWindowHeight() - 30 * MDS - imgui.GetStyle().FramePadding.y * 2)
 					if
 						imgui.Button(
@@ -1002,20 +1007,26 @@ end, function(player)
 						)
 					then
 						imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
+
 						imutil.CenterText(
 							u8(
 								"Переменные, которые можно использовать в тексте команды:"
 							)
 						)
 						for k, v in pairs(cfg.general) do
-							imgui.Text(u8("~{%s}~ -- %s"):format(k, u8(v)))
+							if imgui.Button(u8("~{%s}~ -- %s"):format(k, u8(v)), imgui.ImVec2(imutil.GetMiddleButtonX(1), 30*MDS)) then
+								appendText(u8("\n~{%s}~"):format(k))
+							end
 							imgui.Separator()
 						end
 						
 						if #command.params > 0 then
 							imutil.CenterText(u8("Параметры:"))
 							for i, param in pairs(command.params) do
-								imgui.Text(u8("~{%s}~"):format(ffi.string(param.name)))
+								local label = u8("~{%s}~"):format(ffi.string(param.name))
+								if imgui.Button(label, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30* MDS)) then
+									appendText("\n"..label)
+								end
 								imgui.Separator()
 							end
 						end
@@ -1023,7 +1034,10 @@ end, function(player)
 						if #command.menus > 0 then
 							imutil.CenterText(u8("Меню:"))
 							for i, menu in pairs(command.menus) do
-								imgui.Text(u8("~{%s}~"):format(ffi.string(menu.name)))
+								local label = u8("~{\"%s\"}~"):format(ffi.string(menu.name))
+								if imgui.Button(label, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30* MDS)) then
+									appendText("\n"..label)
+								end
 								imgui.Separator()
 							end
 						end
@@ -1035,7 +1049,15 @@ end, function(player)
 						)
 						for i, doc in ipairs(commandloader.env_docs) do
 							local params = #doc.params > 0 and "(" .. table.concat(doc.params, ", ") .. ")" or "()"
-							imgui.Text(u8("~{%s%s}~ %s"):format(doc.name, u8(params), u8(doc.description)))
+							if
+								imutil.ButtonWrappedTextCenter(
+									u8("~{%s%s}~\n%s"):format(doc.name, u8(params), u8(doc.description)),
+									imgui.ImVec2(imutil.GetMiddleButtonX(1), 45 * MDS)
+								)
+							then
+								local paste = #doc.params > 0 and doc.paste or "~{"..doc.name.."()".."}~"
+								appendText("\n"..paste)
+							end
 							imgui.Separator()
 						end
 
@@ -1128,10 +1150,12 @@ end, function(player)
 					for i, param in pairs(command.params) do
 						if not param.ImTypes then
 							param.types = {}
+							param.originalTypes = {}
 							param.selectedType = imgui.new.int(0)
 							local i = 0
-							for k, v in pairs(commandloader.typeProcessor) do
-								table.insert(param.types, k)
+							for k, v in pairs(commandloader.rusTypes) do
+								table.insert(param.originalTypes, k)
+								table.insert(param.types, v)
 								if ffi.string(param.type) == k then
 									param.selectedType = imgui.new.int(i)
 								end
@@ -1156,6 +1180,9 @@ end, function(player)
 								imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
 							)
 						then
+							imgui.OpenPopup(u8("Удаление параметра##"..i))
+						end
+						if imutil.ConfirmationPopup(u8("Удаление параметра##"..i), u8("Вы уверены?")) then
 							table.remove(command.params, i)
 						end
 						imgui.NextColumn()
@@ -1190,6 +1217,7 @@ end, function(player)
 					for i, menu in pairs(command.menus) do
 						if not menu.ImTypes then
 							menu.types = {}
+
 							menu.selectedType = imgui.new.int(0)
 							local i = 0
 							for k, v in pairs(commandloader.menuTypes) do
@@ -1213,6 +1241,9 @@ end, function(player)
 								imgui.ImVec2(imutil.GetMiddleColumnX(2), 30 * MDS)
 							)
 						then
+							imgui.OpenPopup(u8("Удаление меню##"..i))
+						end
+						if imutil.ConfirmationPopup(u8("Удаление меню##"..i), u8("Вы уверены?")) then
 							table.remove(command.menus, i)
 						end
 						imgui.SameLine()
@@ -1223,15 +1254,15 @@ end, function(player)
 							)
 						then
 							state.currentMenu = i
-							imgui.OpenPopup(u8("Редактирование меню"))
+							imgui.OpenPopup(u8("Редактирование меню").."##menu"..i)
 						end
 
 						if imgui.BeginPopupModal(
-							u8("Редактирование меню"),
+							u8("Редактирование меню".."##menu"..i),
 							_,
 							imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
 						) then
-							local menu = command.menus[state.currentMenu]
+							local menu = state.currentMsource.commands[state.currentCommand].menus[state.currentMenu]
 							imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
 							imutil.Setting(
 								u8("Описание"),
@@ -1253,10 +1284,10 @@ end, function(player)
 							imgui.Text(ylbl)
 
 							imgui.SetNextItemWidth(imutil.GetMiddleButtonX(2))
-							imgui.SliderInt("##sizex", menu.size.x, 100, 1000)
+							imgui.SliderInt("##sizex"..state.currentMenu, menu.size.x, 100, 1000)
 							imgui.SameLine()
 							imgui.SetNextItemWidth(imutil.GetMiddleButtonX(2))
-							imgui.SliderInt("##sizey", menu.size.y, 100, 1000)
+							imgui.SliderInt("##sizey"..state.currentMenu, menu.size.y, 100, 1000)
 							imgui.Separator()
 
 							if menu.types[menu.selectedType[0]+1] == commandloader.menuTypes.CHOICE then
@@ -1293,6 +1324,9 @@ end, function(player)
 												imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
 											)
 										then
+											imgui.OpenPopup(u8("Удаление варианта").."##ch"..i)
+										end
+										if imutil.ConfirmationPopup(u8("Удаление варианта").."##ch"..i, u8("Вы уверены, что хотите удалить вариант?")) then
 											table.remove(menu.choices, i)
 										end
 										imgui.NextColumn()
@@ -1344,7 +1378,7 @@ end, function(player)
 				if imgui.Button(fa.FLOPPY_DISK, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
 					if not util.isEmpty(ffi.string(command.name)) and not util.isEmpty(ffi.string(command.text)) then
 						for _, param in pairs(command.params) do
-							param.type = param.types[param.selectedType[0] + 1]
+							param.type = param.originalTypes[param.selectedType[0] + 1]
 							param.required = imgui.new.bool(util.isEmpty(ffi.string(param.default)))
 						end
 						for _, menu in pairs(command.menus) do
@@ -1427,13 +1461,13 @@ end, function(player)
 	imgui.End()
 end)
 
-imgui.OnFrame(function()
+local mb_button = imgui.OnFrame(function()
 	return state.monetBinderButton[0]
 end, function(player)
 	local pos = imgui.ImVec2(cfg.ui.monet_binder_button_pos.x, cfg.ui.monet_binder_button_pos.y)
 	local size = imgui.ImVec2(cfg.ui.monet_binder_button_size.x, cfg.ui.monet_binder_button_size.y)
 	res, pos, size =
-		imutil.BackgroundButton(fa.TERMINAL, state.monetBinderButton, pos, size, nil, state.monetBinderButtonMove)
+		imutil.BackgroundButton(fa.TERMINAL, state.monetBinderButton, pos, size, nil, state.monetBinderButtonMove[0])
 
 	if res then
 		state.renderMainMenu[0] = not state.renderMainMenu[0]
@@ -1446,10 +1480,10 @@ end, function(player)
 	cfg.ui.monet_binder_button_size.y = size.y
 end)
 
-imgui.OnFrame(function()
+local menus_renderer = imgui.OnFrame(function()
 	return state.menus and #state.menus > 0
 end, function(player)
-	for i, menu in ipairs(state.menus) do
+	for mi, menu in ipairs(state.menus) do
 		if menu.render[0] then
 			imgui.SetNextWindowSize(imgui.ImVec2(menu.size.x*MDS, menu.size.y*MDS), imgui.Cond.FirstUseEver)
 			local screenX, screenY = getScreenResolution()
@@ -1459,16 +1493,18 @@ end, function(player)
 				imgui.Cond.FirstUseEver,
 				imgui.ImVec2(0.5, 0.5)
 			)
-			imgui.Begin(u8(menu.name .. "##" .. i), menu.render)
-			imutil.CenterText(u8(menu.description))
+			imgui.Begin(u8(menu.name .. "##" .. mi), menu.render)
+			if not util.isEmpty(menu.description) then
+				imutil.CenterText(u8(menu.description))
+			end
 			if menu.type == commandloader.menuTypes.CHOICE then
-				for i, choice in ipairs(menu.choices) do
-					local isLast = i == #menu.choices
-					local isEven = i % 2 == 0
+				for ci, choice in ipairs(menu.choices) do
+					local isLast = ci == #menu.choices
+					local isEven = ci % 2 == 0
 					local middle = imutil.GetMiddleButtonX(isEven and 2 or (isLast and 1 or 2))
 					if imgui.Button(u8(choice.name), imgui.ImVec2(middle, 30 * MDS)) then
+						table.remove(state.menus, mi)
 						menu.onChoice(choice)
-						table.remove(state.menus, i)
 					end
 
 					if not isEven then
@@ -1481,7 +1517,7 @@ end, function(player)
 	end
 end)
 
-imgui.OnFrame(function()
+local fastMenu = imgui.OnFrame(function()
 	return state.renderFastMenu[0]
 end, function(player)
 	if state.fastMenuPlayerId and sampIsPlayerConnected(state.fastMenuPlayerId) then

@@ -10,5 +10,25 @@
     "description": "Отыгровки для МЮ",
     "author": "Joake",
     "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/mj.json"
+  },
+  {
+    "name": "МЗ",
+    "description": "Отыгровки для Министерства Здравоохранения.",
+    "author": {
+      "type": "Buffer",
+      "data": [
+        152,
+        152,
+        152,
+        152,
+        152,
+        152,
+        152,
+        152,
+        152,
+        152
+      ]
+    },
+    "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/mz.json"
   }
 ]

@@ -298,12 +298,12 @@ CommandLoader.env_docs = {
 	},
 	{
 		name="time",
-		description="Возвращает текущее время",
+		description="Возвращает текущее время в формате ЧЧ:ММ:СС",
 		params={},
 	},
 	{
 		name="date",
-		description="Возвращает текущую дату",
+		description="Возвращает текущую дату в формате ДД.ММ.ГГГГ",
 		params={},
 	},
 	{
@@ -486,7 +486,9 @@ function CommandLoader.toMimguiTable(source)
 	for _, cmd in ipairs(source.commands) do
 		local ctbl = {}
 		ctbl.name = imgui.new.char[128](cmd.name)
-		ctbl.text = imgui.new.char[1024](u8(cmd.text))
+
+		ctbl.text = imgui.new.char[15360](u8(cmd.text))
+
 		ctbl.description = imgui.new.char[256](u8(cmd.description))
 		ctbl.enabled = imgui.new.bool(cmd.enabled)
 
@@ -515,7 +517,7 @@ function CommandLoader.toMimguiTable(source)
 				for _, choice in ipairs(menu.choices) do
 					local c = {}
 					c.name = imgui.new.char[128](u8(choice.name))
-					c.text = imgui.new.char[1024](u8(choice.text))
+					c.text = imgui.new.char[15360](u8(choice.text))
 					table.insert(m.choices, c)
 				end
 			end
@@ -563,7 +565,8 @@ function CommandLoader.fromMimguiTable(tbl)
 				y = menu.size.y[0],
 			}
 			m.type = ffi.string(menu.type)
-			if menu.type == CommandLoader.menuTypes.CHOICE then
+			print(m.type == CommandLoader.menuTypes.CHOICE, m.type, CommandLoader.menuTypes.CHOICE)
+			if m.type == CommandLoader.menuTypes.CHOICE then
 				m.choices = {}
 				for _, choice in ipairs(menu.choices) do
 					local c = {}
@@ -849,7 +852,7 @@ function CommandLoader.registerCommands()
 							if state.waitm then
 								wait(state.waitm)
 								state.waitm = nil
-							elseif i > 1 then
+							elseif i > 1 and not isEmpty(line) then
 								wait(cfg.general.default_delay)
 							end
 							if not isEmpty(line) then
@@ -894,7 +897,7 @@ function CommandLoader.registerCommands()
 					lua_thread.create(function()
 						processLines(cmd.text)
 					end)
-				end, cmd.vararg) -- Add cmd.vararg as the last argument to sampRegisterChatCommand
+				end)
 			end
 		end
 	end

@@ -1,4 +1,4 @@
-local version = "1.2"
+local version = "1.2.1"
 
 script_name("MonetBinder v" .. version)
 script_author("OSPx")
@@ -979,7 +979,7 @@ end, function(player)
 					imgui.InputTextMultiline(
 						lbl,
 						text,
-						1024,
+						15360,
 						imgui.ImVec2(0, imgui.GetWindowHeight() - 70 * MDS - imgui.GetStyle().FramePadding.y * 2)
 					)
 
@@ -1364,7 +1364,7 @@ end, function(player)
 					table.insert(command.menus, {
 						name = imgui.new.char[256]("menu" .. #command.menus + 1),
 						description = imgui.new.char[256](""),
-						type = "choice",
+						type = commandloader.menuTypes.CHOICE,
 						size = {
 							x = imgui.new.int(200),
 							y = imgui.new.int(125),

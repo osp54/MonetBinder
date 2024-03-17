@@ -14,21 +14,7 @@
   {
     "name": "МЗ",
     "description": "Отыгровки для Министерства Здравоохранения.",
-    "author": {
-      "type": "Buffer",
-      "data": [
-        152,
-        152,
-        152,
-        152,
-        152,
-        152,
-        152,
-        152,
-        152,
-        152
-      ]
-    },
+    "author": "ospx",
     "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/mz.json"
   }
 ]

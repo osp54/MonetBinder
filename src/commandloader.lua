@@ -485,7 +485,7 @@ function CommandLoader.toMimguiTable(source)
 	tbl.commands = {}
 	for _, cmd in ipairs(source.commands) do
 		local ctbl = {}
-		ctbl.name = imgui.new.char[128](cmd.name)
+		ctbl.name = imgui.new.char[128](u8(cmd.name))
 
 		ctbl.text = imgui.new.char[15360](u8(cmd.text))
 
@@ -540,7 +540,7 @@ function CommandLoader.fromMimguiTable(tbl)
 	source.commands = {}
 	for _, cmd in ipairs(tbl.commands) do
 		local ctbl = {}
-		ctbl.name = ffi.string(cmd.name)
+		ctbl.name = u8:decode(ffi.string(cmd.name))
 		ctbl.text = u8:decode(ffi.string(cmd.text))
 		ctbl.description = u8:decode(ffi.string(cmd.description))
 		ctbl.enabled = cmd.enabled[0]

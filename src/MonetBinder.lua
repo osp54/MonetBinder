@@ -738,13 +738,12 @@ end, function(player)
 					imgui.NextColumn()
 					if
 						imgui.Button(
-							source.exsource.name and fa.ARROWS_ROTATE or fa.DOWNLOAD,
+							(source.exsource.name and fa.ARROWS_ROTATE or fa.DOWNLOAD) .. "##" .. i,
 							imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x, 30 * MDS)
 						)
 					then
 						local filename = source.download_link:match("([^/]+)$")
 						local filepath = source.exsource.name and source.exsource.filepath or util.path_join(getWorkingDirectory(), commandloader.dir, filename)
-
 						util.downloadToFile(source.download_link, filepath, function(type, pos, total_size)
 							if type == "downloading" then
 								state.sources_meta[i].download_progress_percent = (pos / total_size) * 100

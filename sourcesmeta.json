@@ -1,5 +1,11 @@
 [
   {
+    "name": "Правительство",
+    "description": "Набор отыгровок для сотрудников Правительства.",
+    "author": "Jesys",
+    "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/Government.json"
+  },
+  {
     "name": "ГЦЛ",
     "description": "Отыгровки для Центра Лицензирования.",
     "author": "ospx",

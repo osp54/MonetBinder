@@ -32,6 +32,10 @@
 ---@field menus? Menu[]
 ---@field hasErrors boolean
 
+---@class Note
+---@field text string
+---@field enabled boolean
+
 ---@class CommandSource
 ---@field name string
 ---@field description? string
@@ -826,11 +830,36 @@ function CommandLoader.registerCommands()
 
 					local env = util.merge(args, cfg.general, CommandLoader.env)
 
-					local function processLine(line, env)
+					local function processLine(iter, env)
+						local line = iter()
+
+						if not line then
+							return false
+						end
+
+						-- if line contain ~{ but not contain }~ then we need to concat lines
+						while line and line:find("~{") and not line:find("}~") do
+							line = line .. "\n" .. iter()
+						end
+
 						line = line:gsub("~{(.-)}~", function(expr)
-							if not expr:match("^%s*[%w_]+%s*=%s*") and not expr:match("^%s*return%s+") then
+							-- if expression is multiline, we need to add return at begin of end line if it's not present
+							
+							--check for multiline and modify last line
+							if expr:find("\n") then
+								local lines = {}
+								for l in expr:gmatch("[^\r\n]+") do
+									table.insert(lines, l)
+								end
+								local last = lines[#lines]
+								if not last:match("^%s*[%w_]+%s*=%s*") and not last:match("^%s*return%s+") then
+									lines[#lines] = "return " .. last
+								end
+								expr = table.concat(lines, "\n")
+							elseif not expr:match("^%s*[%w_]+%s*=%s*") and not expr:match("^%s*return%s+") then
 								expr = "return "..expr
 							end
+
 							local ok, result, penv = pcall(sandbox.run, expr, {
 								env = env,
 							})
@@ -847,8 +876,15 @@ function CommandLoader.registerCommands()
 					
 					local function processLines(text)
 						local i = 1
-						for line in text:gmatch("[^\r\n]+") do
-							line = processLine(line, env)
+						local iter = text:gmatch("[^\r\n]+")
+						
+						while true do
+							line = processLine(iter, env)
+
+							if line == false then
+								break
+							end
+
 							if state.waitm then
 								wait(state.waitm)
 								state.waitm = nil

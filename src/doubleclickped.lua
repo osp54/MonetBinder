@@ -5,12 +5,12 @@ local touch_events = {
     MOVE = 3
   }
 
-local mod = {}
+local dbp = {}
 
 local lastClick = nil
 local lastClickTime = nil
-mod.doubleClickThreshold = 0.5
-mod.clickRadius = 8
+dbp.doubleClickThreshold = 0.5
+dbp.clickRadius = 8
 
 function findPedByRaycasts(screenX, screenY, maxDistance)
     local worldX, worldY, worldZ = convertScreenCoordsToWorld3D(screenX, screenY, maxDistance)
@@ -32,12 +32,12 @@ local function onTouch(type, id, x, y)
         return
     end
 
-    if type == touch_events.PUSH and lastClick ~= nil and distance(lastClick, {x, y}) <= mod.clickRadius and currentTime - lastClickTime <= mod.doubleClickThreshold then
+    if type == touch_events.PUSH and lastClick ~= nil and distance(lastClick, {x, y}) <= dbp.clickRadius and currentTime - lastClickTime <= dbp.doubleClickThreshold then
         local handle = findPedByRaycasts(x, y, 50)
 
         if handle then
             local ped = getCharPointerHandle(handle)
-            mod.onDoubleClickedPed(ped, x, y)
+            dbp.onDoubleClickedPed(ped, x, y)
         end
         
         lastClick = nil
@@ -49,7 +49,7 @@ local function onTouch(type, id, x, y)
 end
 if MONET_VERSION then addEventHandler('onTouch', onTouch) end
 
-function mod.onDoubleClickedPed(ped, x,y) end
+function dbp.onDoubleClickedPed(ped, x,y) end
 
 function distance(point1, point2)
     local dx = point1[1] - point2[1]
@@ -57,4 +57,4 @@ function distance(point1, point2)
     return math.sqrt(dx * dx + dy * dy)
 end
 
-return mod
+return dbp

@@ -1569,6 +1569,7 @@ end)
 
 function main()
 	android:looperPrepare()
+
 	if not isSampLoaded() or not isSampfuncsLoaded() then
 		return
 	end
@@ -1592,7 +1593,6 @@ function main()
 	sampRegisterChatCommand("mb", function()
 		state.renderMainMenu[0] = not state.renderMainMenu[0]
 	end)
-
 	android:showToast(
 		u8("MonetBinder загружен. %s шаблонов. %s команд."):format(
 			commandloader.sourceCount(),

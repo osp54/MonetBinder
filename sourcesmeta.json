@@ -1,7 +1,7 @@
 [
   {
-    "name": "Правительство",
-    "description": "Набор отыгровок для сотрудников Правительства.",
+    "name": "РџСЂР°РІРёС‚РµР»СЊСЃС‚РІРѕ",
+    "description": "РќР°Р±РѕСЂ РѕС‚С‹РіСЂРѕРІРѕРє РґР»СЏ СЃРѕС‚СЂСѓРґРЅРёРєРѕРІ РџСЂР°РІРёС‚РµР»СЊСЃС‚РІР°.",
     "author": "Jesys",
     "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/Government.json"
   },

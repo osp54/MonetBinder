@@ -1,4 +1,3 @@
-local WIDGET_PED_MOVE = 0xA7
 local touch_events = {
     POP = 1,
     PUSH = 2,
@@ -28,12 +27,8 @@ end
 local function onTouch(type, id, x, y)
     local currentTime = os.clock()
 
-    if isWidgetPressed(WIDGET_PED_MOVE, 0) then
-        return
-    end
-
     if type == touch_events.PUSH and lastClick ~= nil and distance(lastClick, {x, y}) <= dbp.clickRadius and currentTime - lastClickTime <= dbp.doubleClickThreshold then
-        local handle = findPedByRaycasts(x, y, 50)
+        local handle = findPedByRaycasts(x, y, isCharInAnyCar(PLAYER_PED) and 150 or 50)
 
         if handle then
             local ped = getCharPointerHandle(handle)

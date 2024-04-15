@@ -10,6 +10,95 @@ function imutil.shortifyText(text, parentWidth)
 	return text
 end
 
+local notifications = {}
+
+function imutil.addNotification(text, duration)
+    table.insert(notifications, {
+        text = text,
+        duration = duration,
+        alpha = 0, -- начальная прозрачность
+        state = "appearing" -- начальное состояние
+    })
+end
+
+function imutil.drawNotifications()
+    local ImGui = imgui
+    local draw_list = ImGui.GetBackgroundDrawList()
+    local screen_width, screen_height = getScreenResolution()
+    local notification_height = 30
+    local notification_margin = 10
+    local animation_speed = 0.02
+
+    for i, notification in ipairs(notifications) do
+        if notification.state == "appearing" then
+            notification.alpha = notification.alpha + animation_speed
+            if notification.alpha >= 1 then
+                notification.alpha = 1
+                notification.state = "displaying"
+                notification.display_start = os.clock()
+            end
+        elseif notification.state == "displaying" then
+            if os.clock() - notification.display_start >= notification.duration then
+                notification.state = "disappearing"
+            end
+        elseif notification.state == "disappearing" then
+            notification.alpha = notification.alpha - animation_speed
+            if notification.alpha <= 0 then
+                table.remove(notifications, i)
+            end
+        end
+
+        local text_size = ImGui.CalcTextSize(notification.text)
+        local notification_width = text_size.x + 20
+        local x = (screen_width - notification_width) / 2
+        local y = screen_height - (notification_height + notification_margin) * i
+
+        draw_list:AddRectFilled(ImGui.ImVec2(x, y), ImGui.ImVec2(x + notification_width, y + notification_height), ImGui.ColorConvertFloat4ToU32(ImGui.ImVec4(0.1, 0.1, 0.1, notification.alpha)), 5)
+        draw_list:AddText(ImGui.ImVec2(x + 10, y + (notification_height - text_size.y) / 2), ImGui.ColorConvertFloat4ToU32(ImGui.ImVec4(1, 1, 1, notification.alpha)), notification.text)
+    end
+end
+
+function imutil.ItemSelector(name, items, selected, fixedSize, dontDrawBorders)
+    assert(items and #items > 1, 'items must be array of strings');
+    assert(selected[0], 'Wrong argument #3. Selected must be "imgui.new.int"');
+    local DL = imgui.GetWindowDrawList();
+    local style = {
+        rounding = imgui.GetStyle().FrameRounding,
+        padding = imgui.GetStyle().FramePadding,
+        col = {
+            default = imgui.GetStyle().Colors[imgui.Col.Button],
+            hovered = imgui.GetStyle().Colors[imgui.Col.ButtonHovered],
+            active = imgui.GetStyle().Colors[imgui.Col.ButtonActive],
+            text = imgui.GetStyle().Colors[imgui.Col.Text]
+        }
+    };
+    local pos = imgui.GetCursorScreenPos();
+    local start = pos;
+    local maxSize = 0;
+    for index, item in ipairs(items) do
+        local textSize = imgui.CalcTextSize(item);
+        local sizeX = (fixedSize or textSize.x) + style.padding.x * 2;
+        imgui.SetCursorScreenPos(pos);
+        if imgui.InvisibleButton('##imguiSelector_'..item..'_'..tostring(index), imgui.ImVec2(sizeX, textSize.y + style.padding.y * 2)) then
+            local old = selected[0];
+            selected[0] = index;
+            return selected[0], old;
+        end
+        DL:AddRectFilled(
+            pos,
+            imgui.ImVec2(pos.x + sizeX, pos.y + textSize.y + style.padding.y * 2),
+            imgui.GetColorU32Vec4((selected[0] == index or imgui.IsItemActive()) and style.col.active or (imgui.IsItemHovered() and style.col.hovered or style.col.default)),
+            style.rounding,
+            (index == 1 and 5 or (index == #items and 10 or 0))
+        );
+        if index > 1 and not dontDrawBorders then DL:AddLine(imgui.ImVec2(pos.x, pos.y + style.padding.y), imgui.ImVec2(pos.x, pos.y + textSize.y + style.padding.y), imgui.GetColorU32Vec4(imgui.GetStyle().Colors[imgui.Col.Border]), 1) end
+        DL:AddText(imgui.ImVec2(pos.x + sizeX / 2 - textSize.x / 2, pos.y + style.padding.y), imgui.GetColorU32Vec4(style.col.text), item);
+        pos = imgui.ImVec2(pos.x + sizeX, pos.y);
+    end
+    DL:AddRect(start, imgui.ImVec2(pos.x, pos.y + imgui.CalcTextSize('A').y + style.padding.y * 2), imgui.GetColorU32Vec4(imgui.GetStyle().Colors[imgui.Col.Border]), imgui.GetStyle().FrameRounding, nil, imgui.GetStyle().FrameBorderSize);
+    DL:AddText(imgui.ImVec2(pos.x + style.padding.x, pos.y + (imgui.CalcTextSize(name).y + style.padding.y * 2) / 2 - imgui.CalcTextSize(name).y / 2), imgui.GetColorU32Vec4(style.col.text), name);
+end
+
 function imutil.GetMiddleColumnX(count)
 	local window_width = imgui.GetWindowWidth()
 	local total_spacing = imgui.GetStyle().ItemSpacing.x * (count - 1)
@@ -115,11 +204,11 @@ end
 
 function imutil.Setting(name, setting, callback, close_button)
 	close_button = close_button == nil and true or close_button
-	imgui.BeginChild(name, imgui.ImVec2(0, 40 * MDS), true)
+	imgui.BeginChild(name, imgui.ImVec2(0, 35 * MDS), true)
 	imgui.Text(setting)
 	imgui.SameLine()
 
-	local size = imgui.ImVec2(30 * MDS, 30 * MDS)
+	local size = imgui.ImVec2(25 * MDS, 25 * MDS)
 	imgui.SetCursorPosX(imutil.GetEndPosButtonX(size, 1))
 	if imgui.Button(fa.PEN, size) then
 		imgui.OpenPopup(name)
@@ -133,16 +222,18 @@ function imutil.Setting(name, setting, callback, close_button)
 		)
 	then
 		imgui.SetWindowSizeVec2(imgui.ImVec2(400 * MDS, 200 * MDS))
+		if close_button then
+			imgui.BeginChild("##setting"..name, imgui.ImVec2(0, imgui.GetWindowSize().y - 30 * MDS - imgui.GetCursorPosY() - imgui.GetStyle().FramePadding.y * 2), true)
+		end
 		callback()
 		if close_button then
-			imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
-			imgui.SetCursorPosY(
-				imgui.GetWindowHeight() - imgui.GetStyle().FramePadding.y - 30 * MDS + imgui.GetScrollY()
-			)
+			imgui.EndChild()
+		end
+		if close_button then
 			if
-				imutil.CenterButton(
+				imgui.Button(
 					fa.XMARK .. u8(" Закрыть"),
-					imgui.ImVec2(imgui.GetWindowWidth() * 0.85, 30 * MDS)
+					imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
 				)
 			then
 				imgui.CloseCurrentPopup()
@@ -155,15 +246,20 @@ function imutil.Setting(name, setting, callback, close_button)
 end
 
 function imutil.SettingButton(setting)
-	imgui.BeginChild(setting, imgui.ImVec2(0, 40 * MDS), true)
+	imgui.BeginChild(setting, imgui.ImVec2(0, 35 * MDS), true)
 	imgui.Text(setting)
 	imgui.SameLine()
 
-	local size = imgui.ImVec2(30 * MDS, 30 * MDS)
+	local size = imgui.ImVec2(25 * MDS, 25 * MDS)
 	imgui.SetCursorPosX(imutil.GetEndPosButtonX(size, 1))
 	local button = imgui.Button(fa.PEN, size)
 	imgui.EndChild()
 	return button
+end
+
+function imutil.CenterColumnText(text)
+    imgui.SetCursorPosX((imgui.GetColumnOffset() + (imgui.GetColumnWidth() / 2)) - imgui.CalcTextSize(text).x / 2)
+    imgui.Text(text)
 end
 
 function imutil.CenterButton(label, bsize, alignment)

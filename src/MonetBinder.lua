@@ -1,4 +1,4 @@
-local version = "1.2.1"
+local version = "%VERSION%"
 
 script_name("MonetBinder v" .. version)
 script_author("OSPx")
@@ -18,7 +18,6 @@ encoding.default = "CP1251"
 u8 = encoding.UTF8
 
 jsoncfg = require("lib.jsoncfg")
-android = require("lib.android")
 
 util = require("src.util")
 imutil = require("src.imgui_util")
@@ -81,8 +80,12 @@ local function mimguiState()
 	state.currentMsource = nil
 	state.currentCommand = nil
 
-	--- @type table<number, Menu>
+	--- @type Menu[]
 	state.menus = {}
+
+	--- @type Note[]
+	state.openedNotes = {}
+
 	return state
 end
 
@@ -515,6 +518,11 @@ local allowedLuaDoc = {
 	},
 }
 
+CHAT_PREFIX = "{00BFFF}[MonetBinder] "
+MAIN_CHAT_COLOR = "{FFFF00}"
+ERROR_CHAT_COLOR = "{FF0000}"
+WARNING_CHAT_COLOR ="{FFA500}"
+
 MDS = MONET_DPI_SCALE or 1
 SOURCES_META_URL = "https://raw.githubusercontent.com/osp54/MonetBinder/main/sourcesmeta.json"
 cfg = jsoncfg.load(cfg, "MonetBinder", ".json") or cfg
@@ -548,11 +556,25 @@ local function isGeneralSettingsChanged()
 		or state.rankNumberInput[0] + 1 ~= cfg.general.rank_number
 end
 
+function chat_info(msg, ...)
+	sampAddChatMessage(CHAT_PREFIX .. MAIN_CHAT_COLOR .. string.format(msg, ...), -1)
+end
+function chat_error(msg, ...)
+	sampAddChatMessage(CHAT_PREFIX .. ERROR_CHAT_COLOR .. string.format(msg, ...), -1)
+end
+function chat_warning(msg, ...)
+	sampAddChatMessage(CHAT_PREFIX .. WARNING_CHAT_COLOR .. string.format(msg, ...), -1)
+end
+
 imgui.OnInitialize(function()
 	imgui.GetIO().IniFilename = nil
 	fa.Init(14 * MDS)
-
 	imgui.GetStyle():ScaleAllSizes(MDS)
+
+    local glyph_ranges = imgui.GetIO().Fonts:GetGlyphRangesCyrillic()
+    local fontpath = util.path_join(getWorkingDirectory(), "lib", "mimgui", 'trebucbd.ttf')
+
+    smal = imgui.GetIO().Fonts:AddFontFromFileTTF(fontpath, 12*MDS, _, glyph_ranges)
 	
 	if cfg.ui.theme == 0 then
 		grayTheme()
@@ -561,6 +583,152 @@ imgui.OnInitialize(function()
 	end
 end)
 
+
+local function textEdit(lbl, text, command)
+	imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+	imgui.InputTextMultiline(
+		lbl,
+		text,
+		15360,
+		imgui.ImVec2(0, imgui.GetWindowHeight() - 70 * MDS - imgui.GetStyle().FramePadding.y * 2)
+	)
+
+	function appendText(atext)
+		local rtext = u8:decode(ffi.string(text))
+		rtext = rtext .. atext
+		ffi.copy(text, u8(rtext))
+	end
+
+	imgui.SetCursorPosY(imgui.GetWindowHeight() - 30 * MDS - imgui.GetStyle().FramePadding.y * 2)
+	if
+		imgui.Button(
+			fa.TAGS .. u8(" Переменные/Функции"),
+			imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)
+		)
+	then
+		imgui.OpenPopup(u8("Переменные/Функции"))
+	end
+
+	if
+		imgui.BeginPopupModal(
+			u8("Переменные/Функции"),
+			_,
+			imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
+		)
+	then
+		imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
+		imgui.BeginChild("##tags",
+			imgui.ImVec2(0,
+				imgui.GetWindowSize().y - 30 * MDS - imgui.GetCursorPosY() - imgui.GetStyle().FramePadding.y * 2), true)
+
+		imutil.CenterText(
+			u8(
+				"Переменные, которые можно использовать в тексте:"
+			)
+		)
+		for k, v in pairs(cfg.general) do
+			if imgui.Button(u8("~{%s}~ -- %s"):format(k, u8(v)), imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
+				appendText(u8("\n~{%s}~"):format(k))
+			end
+			imgui.Separator()
+		end
+
+		if command and #command.params > 0 then
+			imutil.CenterText(u8("Параметры:"))
+			for i, param in pairs(command.params) do
+				local label = u8("~{%s}~"):format(ffi.string(param.name))
+				if imgui.Button(label, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
+					appendText("\n" .. label)
+				end
+				imgui.Separator()
+			end
+		end
+
+		if command and #command.menus > 0 then
+			imutil.CenterText(u8("Меню:"))
+			for i, menu in pairs(command.menus) do
+				local label = u8("~{openMenu(\"%s\")}~"):format(ffi.string(menu.name))
+				if imgui.Button(label, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
+					appendText("\n" .. label)
+				end
+				imgui.Separator()
+			end
+		end
+
+		imutil.CenterText(
+			u8(
+				"Функции, которые можно использовать в тексте:"
+			)
+		)
+		for i, doc in ipairs(commandloader.env_docs) do
+			local params = #doc.params > 0 and "(" .. table.concat(doc.params, ", ") .. ")" or "()"
+			if
+				imutil.ButtonWrappedTextCenter(
+					u8("~{%s%s}~\n%s"):format(doc.name, u8(params), u8(doc.description)),
+					imgui.ImVec2(imutil.GetMiddleButtonX(1), 45 * MDS)
+				)
+			then
+				local paste = #doc.params > 0 and doc.paste or "~{" .. doc.name .. "()" .. "}~"
+				appendText("\n" .. paste)
+			end
+			imgui.Separator()
+		end
+
+		if imgui.CollapsingHeader(u8("Доступные функции Lua")) then
+			if
+				imgui.Button(
+					fa.LINK .. u8(" Открыть документацию Lua"),
+					imgui.ImVec2(imutil.GetMiddleButtonX(1), 20 * MDS)
+				)
+			then
+				util.openLink("https://www.lua.org/manual/5.1/")
+			end
+			function processAllowedLuaDoc(data, prefix)
+				for i, v in ipairs(data) do
+					local fullKey = prefix and (prefix .. "." .. v.name) or v.name
+					if v.is_const then
+						imgui.Text(u8("~{%s}~ -- %s"):format(fullKey, u8(v.description)))
+						imgui.Separator()
+					end
+
+					if v.is_function then
+						local params = "(" .. table.concat(v.params or {}, ", ") .. ")"
+						imgui.Text(u8("~{%s%s}~ %s"):format(fullKey, params, u8(v.description)))
+						imgui.Separator()
+					end
+
+					if v.is_module then
+						imutil.CenterText(u8("Модуль: %s"):format(fullKey))
+						imutil.CenterText(u8(v.description))
+						processAllowedLuaDoc(v.doc, fullKey)
+					end
+				end
+			end
+
+			processAllowedLuaDoc(allowedLuaDoc)
+		end
+
+		imgui.EndChild()
+		if
+			imgui.Button(
+				fa.XMARK .. u8(" Закрыть"),
+				imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
+			)
+		then
+			imgui.CloseCurrentPopup()
+		end
+		imgui.EndPopup()
+	end
+	imgui.SameLine()
+	if
+		imgui.Button(
+			fa.XMARK .. u8(" Закрыть"),
+			imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)
+		)
+	then
+		imgui.CloseCurrentPopup()
+	end
+end
 local mainMenu = imgui.OnFrame(function()
 	return state.renderMainMenu[0]
 end, function(player)
@@ -655,23 +823,13 @@ end, function(player)
 			imgui.ImVec2((imgui.GetWindowWidth() * 0.35) - imgui.GetStyle().FramePadding.x * 2, 0),
 			true
 		)
-		if imgui.Button(fa.CIRCLE_PLUS, imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
-			table.insert(commandloader.sources, {
-				name = "profile" .. #commandloader.sources + 1,
-				description = "",
-				commands = {},
-				enabled = true,
-				filepath = util.path_join(
-					getWorkingDirectory(),
-					commandloader.dir,
-					"profile" .. tostring(#commandloader.sources + 1) .. ".json"
-				),
-			})
+		if imgui.Button(fa.CIRCLE_PLUS .. u8(" Создать профиль"), imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
+			table.insert(commandloader.sources, commandloader.newSource())
 			state.selectedProfile = #commandloader.sources
-			state.currentMsource = commandloader.toMimguiTable(commandloader.sources[state.selectedProfile])
+			state.currentMsource = commandloader.imserializer.serSource(commandloader.sources[state.selectedProfile])
 		end
 		imgui.SameLine()
-		if imgui.Button(fa.GLOBE, imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
+		if imgui.Button(fa.GLOBE .. u8(" Браузер"), imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
 			imgui.OpenPopup(u8("Браузер профилей"))
 		end
 		if
@@ -682,7 +840,6 @@ end, function(player)
 			)
 		then
 			imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
-
 			if
 				imgui.Button(
 					fa.ARROWS_ROTATE .. u8(" Перезагрузить список"),
@@ -692,6 +849,7 @@ end, function(player)
 				state.sources_meta = nil
 				state.sources_meta_loading = false
 			end
+			imgui.BeginChild("##browser", imgui.ImVec2(0, imgui.GetWindowSize().y - 30 * MDS - imgui.GetCursorPosY() - imgui.GetStyle().FramePadding.y * 2), true)
 
 			if state.sources_meta and state.sources_meta.error then
 				imgui.SetCursorPosY(imgui.GetWindowHeight() / 2)
@@ -700,13 +858,13 @@ end, function(player)
 
 			if state.sources_meta and not state.sources_meta.error then
 				imgui.Columns(4, "##sources", true)
-				imgui.Text(u8("Имя"))
+				imutil.CenterColumnText(u8("Имя"))
 				imgui.NextColumn()
-				imgui.Text(u8("Описание"))
+				imutil.CenterColumnText(u8("Описание"))
 				imgui.NextColumn()
-				imgui.Text(u8("Автор"))
+				imutil.CenterColumnText(u8("Автор"))
 				imgui.NextColumn()
-				imgui.Text(u8("Действие"))
+				imutil.CenterColumnText(u8("Действие"))
 				imgui.NextColumn()
 				imgui.Separator()
 				for i, source in ipairs(state.sources_meta) do
@@ -803,31 +961,40 @@ end, function(player)
 				end)
 			end
 
-			imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
-			imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetStyle().FramePadding.y - 30 * MDS)
+			imgui.EndChild()
 			if imgui.Button(fa.XMARK .. u8(" Закрыть"), imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
 				imgui.CloseCurrentPopup()
 			end
 			imgui.EndPopup()
 		end
 		for i, source in pairs(commandloader.sources) do
-			if
-				imgui.Button(
-					u8(source.name),
-					imgui.ImVec2(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
-				)
-			then
+			imgui.BeginGroup()
+			if imgui.Button(
+				u8(source.name),
+				imgui.ImVec2(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
+			) then
 				state.selectedProfile = i
-				state.currentMsource = commandloader.toMimguiTable(source)
+				state.currentMsource = commandloader.imserializer.serSource(source)
 			end
+			imgui.SameLine()
+			if imgui.Button(fa.TRASH, imgui.ImVec2(imutil.GetMiddleButtonX(3), 30 * MDS)) then
+				imgui.OpenPopup(u8("Удаление профиля"))
+			end
+			if imutil.ConfirmationPopup(u8("Удаление профиля"), u8("Вы уверены?")) then
+				commandloader.removeSource(source)
+				commandloader.sources[i] = nil
+
+				state.currentMsource = nil
+				state.selectedProfile = 0
+			end
+			imgui.EndGroup()
 		end
 		imgui.EndChild()
 		imgui.SameLine()
 		imgui.BeginChild("##profile", imgui.ImVec2(0, 0), true)
-
 		local source = commandloader.sources[state.selectedProfile]
 		if source and state.currentMsource then
-			if imgui.Button(fa.TRASH, imgui.ImVec2(imutil.GetMiddleButtonX(3), 30 * MDS)) then
+			if imgui.Button(fa.TRASH, imgui.ImVec2(imutil.GetMiddleButtonX(4), 30 * MDS)) then
 				imgui.OpenPopup(u8("Удаление профиля"))
 			end
 			if imutil.ConfirmationPopup(u8("Удаление профиля"), u8("Вы уверены?")) then
@@ -844,12 +1011,19 @@ end, function(player)
 			end
 
 			imgui.SameLine()
-			if imgui.Button(fa.FLOPPY_DISK, imgui.ImVec2(imutil.GetMiddleButtonX(3), 30 * MDS)) then
-				commandloader.sources[state.selectedProfile] = commandloader.fromMimguiTable(state.currentMsource)
+			if imgui.Button(fa.FLOPPY_DISK, imgui.ImVec2(imutil.GetMiddleButtonX(4), 30 * MDS)) then
+				commandloader.sources[state.selectedProfile] = commandloader.imserializer.deserSource(state.currentMsource)
 				commandloader.saveSource(commandloader.sources[state.selectedProfile])
 				commandloader.reload()
 
-				android:showToast(u8("Шаблон сохранен"), 1)
+				imutil.addNotification(u8("Профиль сохранен"), 1.0)
+			end
+			imgui.SameLine()
+			if imgui.Button(fa.COPY, imgui.ImVec2(imutil.GetMiddleButtonX(4), 30 * MDS)) then
+				local source = commandloader.imserializer.deserSource(state.currentMsource)
+				setClipboardText(encodeJson(source))
+
+				imutil.addNotification(u8("Профиль скопирован в буфер обмена"), 1.0)
 			end
 			imgui.SameLine()
 			if
@@ -857,546 +1031,506 @@ end, function(player)
 					fa.TOGGLE_ON,
 					fa.TOGGLE_OFF,
 					state.currentMsource.enabled[0],
-					imgui.ImVec2(imutil.GetMiddleButtonX(3), 30 * MDS)
+					imgui.ImVec2(imutil.GetMiddleButtonX(4), 30 * MDS)
 				)
 			then
 				state.currentMsource.enabled[0] = not state.currentMsource.enabled[0]
 			end
+
 			imgui.Separator()
-			imutil.Setting(u8("Имя"), u8("Имя: %s"):format(ffi.string(state.currentMsource.name)), function()
+			imutil.Setting(u8("Имя, автор"), u8("Имя, автор: %s, %s"):format(ffi.string(state.currentMsource.name), ffi.string(state.currentMsource.author)), function()
+				imutil.CenterText(u8("Имя:"))
 				imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
 				imgui.InputText("##name", state.currentMsource.name, 256)
+				imutil.CenterText(u8("Автор:"))
+				imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+				imgui.InputText("##author", state.currentMsource.author, 256)
 			end)
 			imgui.Separator()
 			imutil.Setting(
 				u8("Описание"),
 				imutil.shortifyText(u8("Описание: %s"):format(ffi.string(state.currentMsource.description))),
 				function()
-					imgui.SetWindowSizeVec2(imgui.ImVec2(450 * MDS, 400 * MDS))
 					imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
-					imgui.InputTextMultiline(
+					imgui.InputText(
 						"##description",
 						state.currentMsource.description,
-						256,
-						imgui.ImVec2(0, imgui.GetWindowHeight() - 100 * MDS) -- ch
+						256
 					)
 				end
 			)
-			imgui.BeginChild("##commands", imgui.ImVec2(0, 0), true)
-			if
-				imgui.Button(
-					fa.CIRCLE_PLUS .. u8(" Создать команду"),
-					imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
-				)
-			then
-				table.insert(state.currentMsource.commands, {
-					name = imgui.new.char[256]("cmd" .. #state.currentMsource.commands + 1),
-					description = imgui.new.char[256](),
-					text = imgui.new.char[1024](),
-					enabled = imgui.new.bool(true),
-					params = {},
-					menus = {},
-				})
+			if state.currentMsource.commandsTab == nil then
+				state.currentMsource.commandsTab = imgui.new.int(1);
 			end
-			imgui.Columns(3, "##commands", true)
-			imgui.Text(u8("Команда"))
-			imgui.NextColumn()
-			imgui.Text(u8("Описание"))
-			imgui.NextColumn()
-			imgui.Text(u8("Действие"))
-			imgui.NextColumn()
-			imgui.Separator()
-			for i, command in pairs(state.currentMsource.commands) do
-				local cmdname = ffi.string(command.name)
-				imgui.Text("/" .. cmdname)
-				imgui.NextColumn()
-				imgui.Text(imutil.shortifyText(ffi.string(command.description), imgui.GetColumnWidth()))
-				imgui.NextColumn()
+			imutil.ItemSelector(u8 '##commandsornotes',
+				{
+					u8 'Команды ' .. "(" .. #state.currentMsource.commands .. ")",
+					u8 'Заметки ' .. "(" .. #state.currentMsource.notes .. ")"
+				},
+				state.currentMsource.commandsTab,
+				imgui.GetWindowWidth() / 2 - imgui.GetStyle().FramePadding.x * 3
+			)
+			if state.currentMsource.commandsTab[0] == 1 then
 				if
-					imutil.ToggleButtonIcon(
-						fa.TOGGLE_ON .. "##" .. cmdname,
-						fa.TOGGLE_OFF .. "##" .. cmdname,
-						command.enabled[0],
-						imgui.ImVec2(imutil.GetMiddleColumnX(3), 30 * MDS)
+					imgui.Button(
+						fa.CIRCLE_PLUS .. u8(" Создать команду"),
+						imgui.ImVec2(imutil.GetMiddleButtonX(1), 25 * MDS)
 					)
 				then
-					command.enabled[0] = not command.enabled[0]
+					table.insert(state.currentMsource.commands, commandloader.imserializer.newCommand({
+						name = imgui.new.char[256]("cmd" .. #state.currentMsource.commands + 1)
+					}))
 				end
-				imgui.SameLine()
-				if imgui.Button(fa.TRASH .. "##" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(3), 30 * MDS)) then
-					imgui.OpenPopup(u8("Удаление команды##"..i))
-				end
-				if imutil.ConfirmationPopup(u8("Удаление команды##"..i), u8("Вы уверены?")) then
-					table.remove(state.currentMsource.commands, i)
-				end
-				imgui.SameLine()
-				if imgui.Button(fa.PEN .. "##" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(3), 30 * MDS)) then
-					state.currentCommand = i
-					imgui.OpenPopup(u8("Редактирование команды##"..i))
-				end
+				imgui.BeginChild("##commands", imgui.ImVec2(0, 0), true)
+				
+				imgui.Columns(3, "##commands", true)
+				imutil.CenterColumnText(u8("Команда"))
+				imgui.NextColumn()
+				imutil.CenterColumnText(u8("Описание"))
+				imgui.NextColumn()
+				imutil.CenterColumnText(u8("Действие"))
 				imgui.NextColumn()
 				imgui.Separator()
-			end
-			if	state.currentCommand and
-				imgui.BeginPopupModal(
-					u8("Редактирование команды##"..state.currentCommand),
-					_,
-					imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
-				)
-			then
-				local command = state.currentMsource.commands[state.currentCommand]
-
-				imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
-				if util.isEmpty(ffi.string(command.name)) then
-					imutil.CenterError("Имя команды не может быть пустым")
-				end
-				imutil.Setting(
-					u8("Название"),
-					u8("Название: %s"):format(ffi.string(command.name)),
-					function()
-						imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
-						imgui.InputText("##commandname", command.name, 256)
+				for i, command in pairs(state.currentMsource.commands) do
+					local cmdname = ffi.string(command.name)
+					imgui.Text("/" .. cmdname)
+					imgui.NextColumn()
+					imgui.Text(imutil.shortifyText(ffi.string(command.description), imgui.GetColumnWidth()))
+					imgui.NextColumn()
+					if
+						imutil.ToggleButtonIcon(
+							fa.TOGGLE_ON .. "##" .. cmdname,
+							fa.TOGGLE_OFF .. "##" .. cmdname,
+							command.enabled[0],
+							imgui.ImVec2(imutil.GetMiddleColumnX(3), 25 * MDS)
+						)
+					then
+						command.enabled[0] = not command.enabled[0]
 					end
-				)
-				imgui.Separator()
-				imutil.Setting(
-					u8("Описание"),
-					u8("Описание: %s"):format(ffi.string(command.description)),
-					function()
-						imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
-						imgui.InputText("##commanddescription", command.description, 256)
+					imgui.SameLine()
+					if imgui.Button(fa.TRASH .. "##" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(3), 25 * MDS)) then
+						imgui.OpenPopup(u8("Удаление команды##"..i))
 					end
-				)
-				imgui.Separator()
-
-				if util.isEmpty(ffi.string(command.text)) then
-					imutil.CenterError(u8("Текст команды не может быть пустым"))
+					if imutil.ConfirmationPopup(u8("Удаление команды##"..i), u8("Вы уверены?")) then
+						table.remove(state.currentMsource.commands, i)
+					end
+					imgui.SameLine()
+					if imgui.Button(fa.PEN .. "##" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(3), 25 * MDS)) then
+						state.currentCommand = i
+						imgui.OpenPopup(u8("Редактирование команды##"..i))
+					end
+					imgui.NextColumn()
+					imgui.Separator()
 				end
+				if	state.currentCommand and
+					imgui.BeginPopupModal(
+						u8("Редактирование команды##"..state.currentCommand),
+						_,
+						imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
+					)
+				then
+					local command = state.currentMsource.commands[state.currentCommand]
 
-				local function textEdit(lbl, text)
-					imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
-					imgui.InputTextMultiline(
-						lbl,
-						text,
-						15360,
-						imgui.ImVec2(0, imgui.GetWindowHeight() - 70 * MDS - imgui.GetStyle().FramePadding.y * 2)
+					imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
+					imgui.BeginChild("##command", imgui.ImVec2(0, imgui.GetWindowSize().y - 30 * MDS - imgui.GetCursorPosY() - imgui.GetStyle().FramePadding.y * 2), true)
+					if util.isEmpty(ffi.string(command.name)) then
+						imutil.CenterError("Имя команды не может быть пустым")
+					end
+					imutil.Setting(
+						u8("Название"),
+						u8("Название: %s"):format(ffi.string(command.name)),
+						function()
+							imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+							imgui.InputText("##commandname", command.name, 256)
+						end
+					)
+					imgui.Separator()
+					imutil.Setting(
+						u8("Описание"),
+						u8("Описание: %s"):format(ffi.string(command.description)),
+						function()
+							imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+							imgui.InputText("##commanddescription", command.description, 256)
+						end
+					)
+					imgui.Separator()
+
+					if util.isEmpty(ffi.string(command.text)) then
+						imutil.CenterError(u8("Текст команды не может быть пустым"))
+					end
+
+					imutil.Setting(
+						u8("Текст"),
+						imutil.shortifyText(u8("Текст: %s"):format(ffi.string(command.text):gsub("\n", ""))),
+						function()
+							imgui.SetWindowSizeVec2(imgui.ImVec2(600 * MDS, 300 * MDS))
+							textEdit("texteditcmdtext"..state.currentCommand, command.text, command)
+						end,
+						false
 					)
 
-					function appendText(atext)
-						local rtext = u8:decode(ffi.string(command.text))
-						rtext = rtext .. atext
-						ffi.copy(text, u8(rtext))
-					end
+					if #command.params > 0 then
+						imutil.CenterText(u8("Параметры"))
+						imgui.Separator()
+						imgui.Columns(4, "##params", true)
+						imgui.Text(u8("Параметр"))
+						imgui.NextColumn()
+						imgui.Text(u8("Тип"))
+						imgui.NextColumn()
+						imgui.Text(u8("По умолчанию"))
+						imgui.NextColumn()
+						imgui.Text(u8("Действие"))
+						imgui.NextColumn()
+						imgui.Separator()
 
-					imgui.SetCursorPosY(imgui.GetWindowHeight() - 30 * MDS - imgui.GetStyle().FramePadding.y * 2)
-					if
-						imgui.Button(
-							fa.TAGS .. u8(" Переменные/Функции"),
-							imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)
-						)
-					then
-						imgui.OpenPopup(u8("Переменные/Функции"))
-					end
-
-					if
-						imgui.BeginPopupModal(
-							u8("Переменные/Функции"),
-							_,
-							imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
-						)
-					then
-						imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
-
-						imutil.CenterText(
-							u8(
-								"Переменные, которые можно использовать в тексте команды:"
-							)
-						)
-						for k, v in pairs(cfg.general) do
-							if imgui.Button(u8("~{%s}~ -- %s"):format(k, u8(v)), imgui.ImVec2(imutil.GetMiddleButtonX(1), 30*MDS)) then
-								appendText(u8("\n~{%s}~"):format(k))
-							end
-							imgui.Separator()
-						end
-						
-						if #command.params > 0 then
-							imutil.CenterText(u8("Параметры:"))
-							for i, param in pairs(command.params) do
-								local label = u8("~{%s}~"):format(ffi.string(param.name))
-								if imgui.Button(label, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30* MDS)) then
-									appendText("\n"..label)
+						for i, param in pairs(command.params) do
+							if not param.ImTypes then
+								param.types = {}
+								param.originalTypes = {}
+								param.selectedType = imgui.new.int(0)
+								local i = 0
+								for k, v in pairs(commandloader.rusTypes) do
+									table.insert(param.originalTypes, k)
+									table.insert(param.types, v)
+									if ffi.string(param.type) == k then
+										param.selectedType = imgui.new.int(i)
+									end
+									i = i + 1
 								end
-								imgui.Separator()
+								param.ImTypes = imgui.new["const char*"][#param.types](param.types)
 							end
-						end
+							imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+							imgui.InputText("##paramname" .. i, param.name, 256)
+							imgui.NextColumn()
 
-						if #command.menus > 0 then
-							imutil.CenterText(u8("Меню:"))
-							for i, menu in pairs(command.menus) do
-								local label = u8("~{\"%s\"}~"):format(ffi.string(menu.name))
-								if imgui.Button(label, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30* MDS)) then
-									appendText("\n"..label)
-								end
-								imgui.Separator()
-							end
-						end
+							imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+							imgui.Combo("##paramtype" .. i, param.selectedType, param.ImTypes, #param.types)
+							imgui.NextColumn()
 
-						imutil.CenterText(
-							u8(
-								"Функции, которые можно использовать в тексте команды:"
-							)
-						)
-						for i, doc in ipairs(commandloader.env_docs) do
-							local params = #doc.params > 0 and "(" .. table.concat(doc.params, ", ") .. ")" or "()"
-							if
-								imutil.ButtonWrappedTextCenter(
-									u8("~{%s%s}~\n%s"):format(doc.name, u8(params), u8(doc.description)),
-									imgui.ImVec2(imutil.GetMiddleButtonX(1), 45 * MDS)
-								)
-							then
-								local paste = #doc.params > 0 and doc.paste or "~{"..doc.name.."()".."}~"
-								appendText("\n"..paste)
-							end
-							imgui.Separator()
-						end
-
-						if imgui.CollapsingHeader(u8("Доступные функции Lua")) then
+							imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+							imgui.InputText("##paramdefault" .. i, param.default, 256)
+							imgui.NextColumn()
 							if
 								imgui.Button(
-									fa.LINK .. u8(" Открыть документацию Lua"),
-									imgui.ImVec2(imutil.GetMiddleButtonX(1), 20 * MDS)
+									fa.TRASH .. "##param" .. i,
+									imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 25 * MDS)
 								)
 							then
-								util.openLink("https://www.lua.org/manual/5.1/")
+								imgui.OpenPopup(u8("Удаление параметра##"..i))
 							end
-							function processAllowedLuaDoc(data, prefix)
-								for i, v in ipairs(data) do
-									local fullKey = prefix and (prefix .. "." .. v.name) or v.name
-									if v.is_const then
-										imgui.Text(u8("~{%s}~ -- %s"):format(fullKey, u8(v.description)))
-										imgui.Separator()
-									end
+							if imutil.ConfirmationPopup(u8("Удаление параметра##"..i), u8("Вы уверены?")) then
+								table.remove(command.params, i)
+							end
+							imgui.NextColumn()
+							imgui.Separator()
+						end
+						imgui.Columns(1)
+					end
+					if
+						imgui.Button(
+							fa.CIRCLE_PLUS .. u8(" Добавить параметр"),
+							imgui.ImVec2(imutil.GetMiddleButtonX(1), 25 * MDS)
+						)
+					then
+						table.insert(command.params, commandloader.imserializer.newParam({
+							name = imgui.new.char[256]("param" .. #command.params + 1),
+						}))
+					end
+					if #command.menus > 0 then
+						imutil.CenterText(u8("Меню"))
+						imgui.Separator()
+						imgui.Columns(3, "##menus", true)
+						imgui.Text(u8("Меню"))
+						imgui.NextColumn()
+						imgui.Text(u8("Тип"))
+						imgui.NextColumn()
+						imgui.Text(u8("Действие"))
+						imgui.NextColumn()
+						imgui.Separator()
 
-									if v.is_function then
-										local params = "(" .. table.concat(v.params or {}, ", ") .. ")"
-										imgui.Text(u8("~{%s%s}~ %s"):format(fullKey, params, u8(v.description)))
-										imgui.Separator()
-									end
+						for i, menu in pairs(command.menus) do
+							if not menu.ImTypes then
+								menu.types = {}
 
-									if v.is_module then
-										imutil.CenterText(u8("Модуль: %s"):format(fullKey))
-										imutil.CenterText(u8(v.description))
-										processAllowedLuaDoc(v.doc, fullKey)
+								menu.selectedType = imgui.new.int(0)
+								local i = 0
+								for k, v in pairs(commandloader.menuTypes) do
+									table.insert(menu.types, v)
+									if ffi.string(menu.type) == v then
+										menu.selectedType = imgui.new.int(i)
+									end
+									i = i + 1
+								end
+								menu.ImTypes = imgui.new["const char*"][#menu.types](menu.types)
+							end
+							imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+							imgui.InputText("##menuname" .. i, menu.name, 256)
+							imgui.NextColumn()
+							imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+							imgui.Combo("##menutype" .. i, menu.selectedType, menu.ImTypes, #menu.types)
+							imgui.NextColumn()
+							if
+								imgui.Button(
+									fa.TRASH .. "##menu" .. i,
+									imgui.ImVec2(imutil.GetMiddleColumnX(2), 25 * MDS)
+								)
+							then
+								imgui.OpenPopup(u8("Удаление меню##"..i))
+							end
+							if imutil.ConfirmationPopup(u8("Удаление меню##"..i), u8("Вы уверены?")) then
+								table.remove(command.menus, i)
+							end
+							imgui.SameLine()
+							if
+								imgui.Button(
+									fa.PEN .. "##menu" .. i,
+									imgui.ImVec2(imutil.GetMiddleColumnX(2), 25 * MDS)
+								)
+							then
+								state.currentMenu = i
+								imgui.OpenPopup(u8("Редактирование меню").."##menu"..i)
+							end
+
+							if imgui.BeginPopupModal(
+								u8("Редактирование меню".."##menu"..i),
+								_,
+								imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
+							) then
+								local menu = state.currentMsource.commands[state.currentCommand].menus[state.currentMenu]
+								imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
+								imgui.BeginChild("##textedit", imgui.ImVec2(0, imgui.GetWindowSize().y - 30 * MDS - imgui.GetCursorPosY() - imgui.GetStyle().FramePadding.y * 2), true)
+								imutil.Setting(
+									u8("Описание"),
+									u8("Описание: %s"):format(ffi.string(menu.description)),
+									function()
+										imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+										imgui.InputText("##menudescription", menu.description, 256)
+									end
+								)
+								imutil.CenterText(u8("Размер окна"))
+								imgui.Separator()
+								local xlbl = u8("Ширина")
+								imgui.SetCursorPosX(imgui.GetWindowWidth() / 4 - imgui.CalcTextSize(xlbl).x / 2)
+								imgui.Text(xlbl)
+								imgui.SameLine()
+								local ylbl = u8("Высота")
+								imgui.SetCursorPosX(imgui.GetWindowWidth() / 4 * 3 - imgui.CalcTextSize(ylbl).x / 2)
+								imgui.Text(ylbl)
+
+								imgui.SetNextItemWidth(imutil.GetMiddleButtonX(2))
+								imgui.SliderInt("##sizex"..state.currentMenu, menu.size.x, 100, 1000)
+								imgui.SameLine()
+								imgui.SetNextItemWidth(imutil.GetMiddleButtonX(2))
+								imgui.SliderInt("##sizey"..state.currentMenu, menu.size.y, 100, 1000)
+								imgui.Separator()
+
+								if menu.types[menu.selectedType[0]+1] == commandloader.menuTypes.CHOICE then
+									if #menu.choices > 0 then
+										imutil.CenterText(u8("Варианты выбора"))
+										imgui.Separator()
+										imgui.Columns(3, "##choices", true)
+										imgui.Text(u8("Вариант"))
+										imgui.NextColumn()
+										imgui.Text(u8("Текст"))
+										imgui.NextColumn()
+										imgui.Text(u8("Действие"))
+										imgui.NextColumn()
+										imgui.Separator()
+
+										for i, choice in pairs(menu.choices) do
+											imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
+											imgui.InputText("##choicename" .. i, choice.name, 256)
+											imgui.NextColumn()
+											if imgui.Button(fa.PEN .. "##choice" .. i, imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)) then
+												imgui.OpenPopup(u8("Редактирование текста варианта").."##ch"..i)
+											end
+
+											if imgui.BeginPopupModal(u8("Редактирование текста варианта").."##ch"..i, _, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove) then
+												imgui.SetWindowSizeVec2(imgui.ImVec2(600 * MDS, 300 * MDS))
+												textEdit("##texteditchoice"..i, choice.text, command)
+												imgui.EndPopup()
+											end
+											
+											imgui.NextColumn()
+											if
+												imgui.Button(
+													fa.TRASH .. "##choice" .. i,
+													imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
+												)
+											then
+												imgui.OpenPopup(u8("Удаление варианта").."##ch"..i)
+											end
+											if imutil.ConfirmationPopup(u8("Удаление варианта").."##ch"..i, u8("Вы уверены, что хотите удалить вариант?")) then
+												table.remove(menu.choices, i)
+											end
+											imgui.NextColumn()
+											imgui.Separator()
+										end
+										imgui.Columns(1)
+									end
+									if
+										imgui.Button(
+											fa.CIRCLE_PLUS .. u8(" Добавить вариант"),
+											imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
+										)
+									then
+										table.insert(menu.choices, commandloader.imserializer.newChooseMenuChoice({
+											name = imgui.new.char[256]("choice" .. #menu.choices + 1),
+										}))
 									end
 								end
-							end
-							processAllowedLuaDoc(allowedLuaDoc)
-						end
 
-						imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
-						--imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetFrameHeightWithSpacing())
-						imgui.SetCursorPosY(
-							imgui.GetWindowHeight()
-								- imgui.GetStyle().FramePadding.y
-								- 30 * MDS
-								+ imgui.GetScrollY()
+								imgui.EndChild()
+								if imgui.Button(fa.FLOPPY_DISK, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
+									imgui.CloseCurrentPopup()
+								end
+								imgui.EndPopup()
+							end
+
+							imgui.NextColumn()
+							imgui.Separator()
+						end
+						imgui.Columns(1)
+					end
+					if imgui.Button(fa.CIRCLE_PLUS .. u8(" Добавить меню"), imgui.ImVec2(imutil.GetMiddleButtonX(1), 25 * MDS)) then
+						table.insert(command.menus, commandloader.imserializer.newChooseMenu({
+							name = imgui.new.char[256]("menu" .. #command.menus + 1)
+						}))
+					end
+					imgui.EndChild()
+					if imgui.Button(fa.XMARK .. u8" Сбросить изменения", imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
+						imgui.OpenPopup(u8"Сбросить изменения")
+					end
+					local needClose = false
+					if imutil.ConfirmationPopup(u8"Сбросить изменения", u8"Вы уверены, что хотите сбросить изменения?") then
+						state.currentMsource.commands[state.currentCommand] = commandloader.imserializer.serCommand(commandloader.sources[state.selectedProfile].commands[state.currentCommand])
+						needClose = true
+					end
+					if needClose then
+						imgui.CloseCurrentPopup()
+					end
+					imgui.SameLine()
+					if imgui.Button(fa.FLOPPY_DISK .. u8" Сохранить", imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
+						if not util.isEmpty(ffi.string(command.name)) and not util.isEmpty(ffi.string(command.text)) then
+							for _, param in pairs(command.params) do
+								param.type = param.originalTypes[param.selectedType[0] + 1]
+								param.required = imgui.new.bool(util.isEmpty(ffi.string(param.default)))
+							end
+							for _, menu in pairs(command.menus) do
+								menu.type = menu.types[menu.selectedType[0] + 1]
+							end
+
+							commandloader.sources[state.selectedProfile] =
+								commandloader.imserializer.deserSource(state.currentMsource)
+							commandloader.saveSource(commandloader.sources[state.selectedProfile])
+							commandloader.reload()
+							imgui.CloseCurrentPopup()
+							imutil.addNotification(u8"Команда сохранена", 1.0)
+						else
+							imutil.addNotification(u8"Заполните все поля", 1.0)
+						end
+					end
+					imgui.EndPopup()
+				end
+				imgui.EndChild()
+			else
+				if
+					imgui.Button(
+						fa.CIRCLE_PLUS .. u8(" Создать заметку"),
+						imgui.ImVec2(imutil.GetMiddleButtonX(1), 25 * MDS)
+					)
+				then
+					table.insert(state.currentMsource.notes, commandloader.imserializer.newNote({
+						name = imgui.new.char[256]("note" .. #state.currentMsource.notes + 1)
+					}))
+				end
+				imgui.BeginChild("##notes", imgui.ImVec2(0, 0), true)
+				imgui.Columns(2, "##notes", true)
+				imutil.CenterColumnText(u8("Заметка"))
+				imgui.NextColumn()
+				imutil.CenterColumnText(u8("Действие"))
+				imgui.NextColumn()
+				imgui.Separator()
+				for i, note in pairs(state.currentMsource.notes) do
+					imgui.Text(ffi.string(note.name))
+					imgui.NextColumn()
+					if imutil.ToggleButtonIcon(fa.TOGGLE_ON, fa.TOGGLE_OFF, note.enabled[0], imgui.ImVec2(imutil.GetMiddleColumnX(4), 25 * MDS)) then
+						note.enabled[0] = not note.enabled[0]
+					end
+					imgui.SameLine()
+					if
+						imgui.Button(
+							fa.TRASH .. "##note" .. i,
+							imgui.ImVec2(imutil.GetMiddleColumnX(4), 25 * MDS)
 						)
-						if
-							imgui.Button(
-								fa.XMARK .. u8(" Закрыть"),
-								imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
-							)
-						then
+					then
+						imgui.OpenPopup(u8("Удаление заметки##"..i))
+					end
+					if imutil.ConfirmationPopup(u8("Удаление заметки##"..i), u8("Вы уверены?")) then
+						table.remove(state.currentMsource.notes, i)
+					end
+					imgui.SameLine()
+					if imgui.Button(fa.PEN .. "##note" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(4), 25 * MDS)) then
+						state.currentNote = i
+						imgui.OpenPopup(u8("Редактирование заметки##"..i))
+					end
+
+					if imgui.BeginPopupModal(u8("Редактирование заметки##"..i), _, imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove) then
+						local note = state.currentMsource.notes[state.currentNote]
+						imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
+						imgui.BeginChild("##textedit", imgui.ImVec2(0, imgui.GetWindowSize().y - 30 * MDS - imgui.GetCursorPosY() - imgui.GetStyle().FramePadding.y * 2), true)
+						imutil.Setting(
+							u8("Название"),
+							u8("Название: %s"):format(ffi.string(note.name)),
+							function()
+								imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+								imgui.InputText("##notename", note.name, 256)
+							end
+						)
+						imutil.Setting(
+							u8("Текст"),
+							imutil.shortifyText(u8("Текст: %s"):format(ffi.string(note.text):gsub("\n", ""))),
+							function()
+								imgui.SetWindowSizeVec2(imgui.ImVec2(600 * MDS, 300 * MDS))
+								textEdit("texteditnote"..state.currentNote, note.text)
+							end,
+							false
+						)
+						imutil.ToggleButton(u8("Открывать при запуске скрипта"), note.openOnStart)
+						imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
+						imgui.SliderFloat("##fps", note.FPS, 0, 60, u8("Кол-во обновлений за-тки в сек: %.1f"))
+						imgui.EndChild()
+						if imgui.Button(fa.XMARK .. u8" Сбросить изменения", imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
+							imgui.OpenPopup(u8"Сбросить изменения")
+						end
+						local needClose = false
+						if imutil.ConfirmationPopup(u8"Сбросить изменения", u8"Вы уверены, что хотите сбросить изменения?") then
+							state.currentMsource.notes[state.currentNote] = commandloader.imserializer.serNote(commandloader.sources[state.selectedProfile].notes[state.currentNote])
+							needClose = true
+						end
+						if needClose then
+							imgui.CloseCurrentPopup()
+						end
+						imgui.SameLine()
+						if imgui.Button(fa.FLOPPY_DISK .. u8(" Сохранить"), imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)) then
+							commandloader.sources[state.selectedProfile] = commandloader.imserializer.deserSource(state.currentMsource)
+							commandloader.saveSource(commandloader.sources[state.selectedProfile])
+
+							imutil.addNotification(u8("Заметка сохранена"), 1.0)
 							imgui.CloseCurrentPopup()
 						end
 						imgui.EndPopup()
 					end
 					imgui.SameLine()
-					if
-						imgui.Button(
-							fa.XMARK .. u8(" Закрыть"),
-							imgui.ImVec2(imutil.GetMiddleButtonX(2), 30 * MDS)
-						)
-					then
-						imgui.CloseCurrentPopup()
+					if imgui.Button(fa.EYE .. "##note" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(4), 25 * MDS)) then
+						table.insert(state.openedNotes, source.notes[i])
 					end
-				end
-
-				imutil.Setting(
-					u8("Текст"),
-					imutil.shortifyText(u8("Текст: %s"):format(ffi.string(command.text):gsub("\n", ""))),
-					function()
-						imgui.SetWindowSizeVec2(imgui.ImVec2(600 * MDS, 300 * MDS))
-						textEdit("texteditcmdtext"..state.currentCommand, command.text)
-					end,
-					false
-				)
-
-				if #command.params > 0 then
-					imutil.CenterText(u8("Параметры"))
-					imgui.Separator()
-					imgui.Columns(4, "##params", true)
-					imgui.Text(u8("Параметр"))
-					imgui.NextColumn()
-					imgui.Text(u8("Тип"))
-					imgui.NextColumn()
-					imgui.Text(u8("По умолчанию"))
-					imgui.NextColumn()
-					imgui.Text(u8("Действие"))
 					imgui.NextColumn()
 					imgui.Separator()
-
-					for i, param in pairs(command.params) do
-						if not param.ImTypes then
-							param.types = {}
-							param.originalTypes = {}
-							param.selectedType = imgui.new.int(0)
-							local i = 0
-							for k, v in pairs(commandloader.rusTypes) do
-								table.insert(param.originalTypes, k)
-								table.insert(param.types, v)
-								if ffi.string(param.type) == k then
-									param.selectedType = imgui.new.int(i)
-								end
-								i = i + 1
-							end
-							param.ImTypes = imgui.new["const char*"][#param.types](param.types)
-						end
-						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-						imgui.InputText("##paramname" .. i, param.name, 256)
-						imgui.NextColumn()
-
-						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-						imgui.Combo("##paramtype" .. i, param.selectedType, param.ImTypes, #param.types)
-						imgui.NextColumn()
-
-						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-						imgui.InputText("##paramdefault" .. i, param.default, 256)
-						imgui.NextColumn()
-						if
-							imgui.Button(
-								fa.TRASH .. "##param" .. i,
-								imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
-							)
-						then
-							imgui.OpenPopup(u8("Удаление параметра##"..i))
-						end
-						if imutil.ConfirmationPopup(u8("Удаление параметра##"..i), u8("Вы уверены?")) then
-							table.remove(command.params, i)
-						end
-						imgui.NextColumn()
-						imgui.Separator()
-					end
-					imgui.Columns(1)
 				end
-				if
-					imgui.Button(
-						fa.CIRCLE_PLUS .. u8(" Добавить параметр"),
-						imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
-					)
-				then
-					table.insert(command.params, {
-						name = imgui.new.char[256]("param" .. #command.params + 1),
-						type = "string",
-						default = imgui.new.char[256](),
-					})
-				end
-				if #command.menus > 0 then
-					imutil.CenterText(u8("Меню"))
-					imgui.Separator()
-					imgui.Columns(3, "##menus", true)
-					imgui.Text(u8("Меню"))
-					imgui.NextColumn()
-					imgui.Text(u8("Тип"))
-					imgui.NextColumn()
-					imgui.Text(u8("Действие"))
-					imgui.NextColumn()
-					imgui.Separator()
-
-					for i, menu in pairs(command.menus) do
-						if not menu.ImTypes then
-							menu.types = {}
-
-							menu.selectedType = imgui.new.int(0)
-							local i = 0
-							for k, v in pairs(commandloader.menuTypes) do
-								table.insert(menu.types, v)
-								if ffi.string(menu.type) == v then
-									menu.selectedType = imgui.new.int(i)
-								end
-								i = i + 1
-							end
-							menu.ImTypes = imgui.new["const char*"][#menu.types](menu.types)
-						end
-						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-						imgui.InputText("##menuname" .. i, menu.name, 256)
-						imgui.NextColumn()
-						imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-						imgui.Combo("##menutype" .. i, menu.selectedType, menu.ImTypes, #menu.types)
-						imgui.NextColumn()
-						if
-							imgui.Button(
-								fa.TRASH .. "##menu" .. i,
-								imgui.ImVec2(imutil.GetMiddleColumnX(2), 30 * MDS)
-							)
-						then
-							imgui.OpenPopup(u8("Удаление меню##"..i))
-						end
-						if imutil.ConfirmationPopup(u8("Удаление меню##"..i), u8("Вы уверены?")) then
-							table.remove(command.menus, i)
-						end
-						imgui.SameLine()
-						if
-							imgui.Button(
-								fa.PEN .. "##menu" .. i,
-								imgui.ImVec2(imutil.GetMiddleColumnX(2), 30 * MDS)
-							)
-						then
-							state.currentMenu = i
-							imgui.OpenPopup(u8("Редактирование меню").."##menu"..i)
-						end
-
-						if imgui.BeginPopupModal(
-							u8("Редактирование меню".."##menu"..i),
-							_,
-							imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove
-						) then
-							local menu = state.currentMsource.commands[state.currentCommand].menus[state.currentMenu]
-							imgui.SetWindowSizeVec2(imgui.ImVec2(700 * MDS, 400 * MDS))
-							imutil.Setting(
-								u8("Описание"),
-								u8("Описание: %s"):format(ffi.string(menu.description)),
-								function()
-									imgui.SetNextItemWidth(imgui.GetWindowWidth() - imgui.GetStyle().FramePadding.x * 2)
-									imgui.InputText("##menudescription", menu.description, 256)
-								end
-
-							)
-							imutil.CenterText(u8("Размер окна"))
-							imgui.Separator()
-							local xlbl = u8("Ширина")
-							imgui.SetCursorPosX(imgui.GetWindowWidth() / 4 - imgui.CalcTextSize(xlbl).x / 2)
-							imgui.Text(xlbl)
-							imgui.SameLine()
-							local ylbl = u8("Высота")
-							imgui.SetCursorPosX(imgui.GetWindowWidth() / 4 * 3 - imgui.CalcTextSize(ylbl).x / 2)
-							imgui.Text(ylbl)
-
-							imgui.SetNextItemWidth(imutil.GetMiddleButtonX(2))
-							imgui.SliderInt("##sizex"..state.currentMenu, menu.size.x, 100, 1000)
-							imgui.SameLine()
-							imgui.SetNextItemWidth(imutil.GetMiddleButtonX(2))
-							imgui.SliderInt("##sizey"..state.currentMenu, menu.size.y, 100, 1000)
-							imgui.Separator()
-
-							if menu.types[menu.selectedType[0]+1] == commandloader.menuTypes.CHOICE then
-								if #menu.choices > 0 then
-									imutil.CenterText(u8("Варианты выбора"))
-									imgui.Separator()
-									imgui.Columns(3, "##choices", true)
-									imgui.Text(u8("Вариант"))
-									imgui.NextColumn()
-									imgui.Text(u8("Текст"))
-									imgui.NextColumn()
-									imgui.Text(u8("Действие"))
-									imgui.NextColumn()
-									imgui.Separator()
-
-									for i, choice in pairs(menu.choices) do
-										imgui.SetNextItemWidth(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2)
-										imgui.InputText("##choicename" .. i, choice.name, 256)
-										imgui.NextColumn()
-										if imgui.Button(fa.PEN .. "##choice" .. i, imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)) then
-											imgui.OpenPopup(u8("Редактирование текста варианта").."##ch"..i)
-										end
-
-										if imgui.BeginPopupModal(u8("Редактирование текста варианта").."##ch"..i, _, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize + imgui.WindowFlags.NoMove) then
-											imgui.SetWindowSizeVec2(imgui.ImVec2(600 * MDS, 300 * MDS))
-											textEdit("##texteditchoice"..i, choice.text)
-											imgui.EndPopup()
-										end
-										
-										imgui.NextColumn()
-										if
-											imgui.Button(
-												fa.TRASH .. "##choice" .. i,
-												imgui.ImVec2(imgui.GetColumnWidth() - imgui.GetStyle().FramePadding.x * 2, 30 * MDS)
-											)
-										then
-											imgui.OpenPopup(u8("Удаление варианта").."##ch"..i)
-										end
-										if imutil.ConfirmationPopup(u8("Удаление варианта").."##ch"..i, u8("Вы уверены, что хотите удалить вариант?")) then
-											table.remove(menu.choices, i)
-										end
-										imgui.NextColumn()
-										imgui.Separator()
-									end
-									imgui.Columns(1)
-								end
-								if
-									imgui.Button(
-										fa.CIRCLE_PLUS .. u8(" Добавить вариант"),
-										imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)
-									)
-								then
-									table.insert(menu.choices, {
-										name = imgui.new.char[256]("choice" .. #menu.choices + 1),
-										text = imgui.new.char[1024](),
-									})
-								end
-							end
-
-							imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
-							imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetStyle().FramePadding.y - 30*MDS + imgui.GetScrollY())
-							if imgui.Button(fa.FLOPPY_DISK, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
-								imgui.CloseCurrentPopup()
-							end
-							imgui.EndPopup()
-						end
-
-						imgui.NextColumn()
-						imgui.Separator()
-					end
-					imgui.Columns(1)
-				end
-				if imgui.Button(fa.CIRCLE_PLUS .. u8(" Добавить меню"), imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
-					table.insert(command.menus, {
-						name = imgui.new.char[256]("menu" .. #command.menus + 1),
-						description = imgui.new.char[256](""),
-						type = commandloader.menuTypes.CHOICE,
-						size = {
-							x = imgui.new.int(200),
-							y = imgui.new.int(125),
-						},
-						choices = {},
-					})
-				end
-
-				imgui.Dummy(imgui.ImVec2(0, 30 * MDS))
-				imgui.SetCursorPosY(imgui.GetWindowHeight() - imgui.GetStyle().FramePadding.y - 30*MDS + imgui.GetScrollY())
-				if imgui.Button(fa.FLOPPY_DISK, imgui.ImVec2(imutil.GetMiddleButtonX(1), 30 * MDS)) then
-					if not util.isEmpty(ffi.string(command.name)) and not util.isEmpty(ffi.string(command.text)) then
-						for _, param in pairs(command.params) do
-							param.type = param.originalTypes[param.selectedType[0] + 1]
-							param.required = imgui.new.bool(util.isEmpty(ffi.string(param.default)))
-						end
-						for _, menu in pairs(command.menus) do
-							menu.type = menu.types[menu.selectedType[0] + 1]
-						end
-
-						commandloader.sources[state.selectedProfile] =
-							commandloader.fromMimguiTable(state.currentMsource)
-						commandloader.saveSource(commandloader.sources[state.selectedProfile])
-						commandloader.reload()
-						android:showToast(u8("Команда сохранена"), 1)
-						imgui.CloseCurrentPopup()
-					else
-						android:showToast(u8("Заполните все поля"), 1)
-					end
-				end
-				imgui.EndPopup()
+				imgui.Columns(1)
+				imgui.EndChild()
 			end
-			imgui.EndChild()
 		else
 			imgui.SetCursorPosY(imgui.GetWindowHeight() / 2)
 			imutil.CenterText(u8("Выберите профиль"))
@@ -1477,6 +1611,35 @@ end, function(player)
 
 	cfg.ui.monet_binder_button_size.x = size.x
 	cfg.ui.monet_binder_button_size.y = size.y
+end)
+
+local notes_renderer = imgui.OnFrame(function()
+	return state.openedNotes and #state.openedNotes > 0
+end, function (player)
+	for i, note in ipairs(state.openedNotes) do
+		imgui.SetNextWindowSize(imgui.ImVec2(note.size.x * MDS, note.size.y * MDS), imgui.Cond.FirstUseEver)
+		imgui.SetNextWindowPos(
+			imgui.ImVec2(note.pos.x, note.pos.y),
+			imgui.Cond.FirstUseEver,
+			imgui.ImVec2(0.5, 0.5)
+		)
+		local flag = note.pinned and imgui.WindowFlags.NoTitleBar
+								+ imgui.WindowFlags.NoResize
+								+ imgui.WindowFlags.NoMove
+								+ imgui.WindowFlags.NoBackground
+								or nil
+		imgui.Begin(u8(note.name), imgui.new.bool(true), flag)
+		imgui.BeginChild("##note", imgui.ImVec2(0, imgui.GetWindowSize().y - 15 * MDS - imgui.GetCursorPosY() - imgui.GetStyle().FramePadding.y * 2), true)
+		imgui.TextWrapped(u8(note.text))
+		imgui.EndChild()
+		imgui.PushFont(smal)
+		imgui.SetCursorPosX(imgui.GetWindowWidth() / 2 - imgui.GetStyle().FramePadding.x * 2)
+		if imgui.Button((note.pinned and u8"Открепить" or u8"Закрепить"), imgui.ImVec2(imgui.GetWindowWidth() / 2 - imgui.GetStyle().FramePadding.x * 2, 15 * MDS)) then
+			note.pinned = not note.pinned
+		end
+		imgui.PopFont()
+		imgui.End()
+	end
 end)
 
 local menus_renderer = imgui.OnFrame(function()
@@ -1567,9 +1730,11 @@ end, function(player)
 	end
 end)
 
-function main()
-	android:looperPrepare()
+local notifRenderer = imgui.OnFrame(function() return true end, function () 
+	imutil.drawNotifications()
+end)
 
+function main()
 	if not isSampLoaded() or not isSampfuncsLoaded() then
 		return
 	end
@@ -1593,16 +1758,38 @@ function main()
 	sampRegisterChatCommand("mb", function()
 		state.renderMainMenu[0] = not state.renderMainMenu[0]
 	end)
-	android:showToast(
-		u8("MonetBinder загружен. %s шаблонов. %s команд."):format(
-			commandloader.sourceCount(),
-			commandloader.commandCount()
-		),
-		2
-	)
 
+	for _, source in pairs(commandloader.sources) do
+		if source.enabled and #source.notes > 0 then
+			for _, note in pairs(source.notes) do
+				if note.openOnStart then
+					table.insert(state.openedNotes, note)
+				end
+			end
+		end
+	end
+
+	local env = util.merge(cfg.general, commandloader.env, {
+		v = {}
+	})
 	while true do
-		wait(0)
+		wait(60)
+
+		for i, note in ipairs(state.openedNotes) do
+			local iter = note.text:gmatch("[^\r\n]+")
+
+			local text = ""
+			while true do
+				local line = commandloader.processLine(iter, env)
+				if line then
+					text = text .. line .. "\n"
+				else
+					break
+				end
+			end
+
+			state.openedNotes[i].text = text
+		end
 	end
 end
 

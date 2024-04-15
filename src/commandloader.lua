@@ -33,23 +33,23 @@
 ---@field hasErrors boolean
 
 ---@class Note
+---@field name string
 ---@field text string
+---@field openOnStart boolean
 ---@field enabled boolean
+---@field pinned boolean
+---@field pos? Vec2
+---@field size? Vec2
+---@field FPS? number
 
 ---@class CommandSource
 ---@field name string
+---@field author? string
 ---@field description? string
 ---@field enabled? boolean
 ---@field commands Command[]
+---@field notes Note[]
 ---@field filepath string
-
----@class ValidatorError
----@field error_code number
----@field details ValidatorErrorDetails | string
-
----@class ValidatorErrorDetails
----@field param_id? number
----@field command_id? string
 
 local weapons = require "game.weapons"
 local sandbox = require("lib.sandbox")
@@ -124,11 +124,45 @@ CommandLoader.rusTypes = {
 	["string"] = u8"строка",
 	["vararg"] = u8"аргумент переменной длины",
 }
+local servers = {
+	["80.66.82.162"] = { number = -1, name = "MOBILE I", runame = "Мобайл I"},
+	["80.66.82.148"] = { number = -2, name = "MOBILE II", runame = "Мобайл II"},
+	["80.66.82.136"] = { number = -3, name = "MOBILE III", runame = "Мобайл III"},
+
+    ["185.169.134.44"] = {number = 4, name = "Chandler", runame = "Чандлер"},
+    ["185.169.134.43"] = {number = 3, name = "Scottdale", runame = "Скоттдейл"},
+    ["185.169.134.45"] = {number = 5, name = "Brainburg", runame = "Брейнбург"},
+    ["185.169.134.5"] = {number = 6, name = "Saint-Rose", runame = "Сент-Роуз"},
+    ["185.169.132.107"] = {number = 6, name = "Saint-Rose", runame = "Сент-Роуз"},
+    ["185.169.134.59"] = {number = 7, name = "Mesa", runame = "Меса"},
+    ["185.169.134.61"] = {number = 8, name = "Red-Rock", runame = "Ред-Рок"},
+    ["185.169.134.107"] = {number = 9, name = "Yuma", runame = "Юма"},
+    ["185.169.134.109"] = {number = 10, name = "Surprise", runame = "Сюрпрайз"},
+    ["185.169.134.166"] = {number = 11, name = "Prescott", runame = "Прескотт"},
+    ["185.169.134.171"] = {number = 12, name = "Glendale", runame = "Глендейл"},
+    ["185.169.134.172"] = {number = 13, name = "Kingman", runame = "Кингман"},
+    ["185.169.134.173"] = {number = 14, name = "Winslow", runame = "Уинслоу"},
+    ["185.169.134.174"] = {number = 15, name = "Payson", runame = "Пэйсон"},
+    ["80.66.82.191"] = {number = 16, name = "Gilbert", runame = "Гилберт"},
+    ["80.66.82.190"] = {number = 17, name = "Show Low", runame = "Шоу Лоу"},
+    ["80.66.82.188"] = {number = 18, name = "Casa-Grande", runame = "Каса-Гранде"},
+    ["80.66.82.168"] = {number = 19, name = "Page", runame = "Пейдж"},
+    ["80.66.82.159"] = {number = 20, name = "Sun-City", runame = "Сан-Сити"},
+    ["80.66.82.200"] = {number = 21, name = "Queen-Creek", runame = "Квин-Крик"},
+    ["80.66.82.144"] = {number = 22, name = "Sedona", runame = "Седона"},
+    ["80.66.82.132"] = {number = 23, name = "Holiday", runame = "Холидей"},
+    ["80.66.82.128"] = {number = 24, name = "Wednesday", runame = "Венсдей"},
+    ["80.66.82.113"] = {number = 25, name = "Yava", runame = "Ява"},
+    ["80.66.82.82"] = {number = 26, name = "Faraway", runame = "Фарэвэй"},
+    ["80.66.82.87"] = {number = 27, name = "Bumble Bee", runame = "Бамбл Би"},
+    ["80.66.82.54"] = {number = 28, name = "Christmas", runame = "Кристмас"},
+    ["185.169.134.3"] = {number = 1, name = "Phoenix", runame = "Феникс"},
+    ["185.169.132.105"] = {number = 1, name = "Phoenix", runame = "Феникс"},
+    ["185.169.134.4"] = {number = 2, name = "Tucson", runame = "Туксон"},
+    ["185.169.132.106"] = {number = 2, name = "Tucson", runame = "Туксон"},
+}
 
 CommandLoader.env = {
-	["wait"] = function(ms)
-		state.waitm = tonumber(ms)
-	end,
 	["time"] = function()
 		return os.date("%H:%M:%S")
 	end,
@@ -226,7 +260,9 @@ CommandLoader.env = {
 
 		return city[getCityPlayerIsIn(PLAYER_HANDLE)]
 	end,
-
+	["street"] = function()
+		return util.calculateZone(getCharCoordinates(PLAYER_PED))
+	end,
 	["nickid"] = function(id)
 		return sampGetPlayerNickname(id)
 	end,
@@ -286,6 +322,27 @@ CommandLoader.env = {
 
 		return nearest and select(2, sampGetPlayerIdByCharHandle(nearest)) or nil
 	end,
+	["server_name"] = function()
+		return sampGetCurrentServerName()
+	end,
+	["server_ip"] = function()
+		return sampGetCurrentServerAddress()
+	end,
+	["arizona_server_number"] = function()
+		local server = servers[sampGetCurrentServerAddress()]
+
+		return server and server.number or 0
+	end,
+	["arizona_server_name"] = function()
+		local server = servers[sampGetCurrentServerAddress()]
+
+		return server and server.name or "Неизвестно"
+	end,
+	["arizona_server_runame"] = function()
+		local server = servers[sampGetCurrentServerAddress()]
+
+		return server and server.runame or "Неизвестно"
+	end,
 }
 CommandLoader.env_docs = {
 	{
@@ -299,6 +356,12 @@ CommandLoader.env_docs = {
 		description="Ждать N миллисекунд",
 		params={"мс"},
 		paste = "~{wait(1000)}~"
+	},
+	{
+		name="waitif",
+		description="Ждать N миллисекунд, если условие истинно",
+		params={"условие", "мс"},
+		paste = "~{waitif(true, 1000)}~"
 	},
 	{
 		name="time",
@@ -402,6 +465,11 @@ CommandLoader.env_docs = {
 		params={},
 	},
 	{
+		name="street",
+		description="Возвращает название улицы, на которой находится игрок",
+		params={},
+	},
+	{
 		name="nickid",
 		description="Возвращает ник игрока по ID",
 		params={"ID"},
@@ -450,12 +518,38 @@ CommandLoader.env_docs = {
 		paste = "~{player_id_nearest(50)}~"
 	},
 	{
+		name="server_name",
+		description="Возвращает название сервера в чистом виде",
+		params={},
+	},
+	{
+		name="server_ip",
+		description="Возвращает IP сервера",
+		params={},
+	},
+	{
+		name="arizona_server_number",
+		description="Возвращает номер сервера Arizona RP",
+		params={},
+	},
+	{
+		name="arizona_server_name",
+		description="Возвращает название сервера Arizona. Например Phoenix",
+		params={},
+	},
+	{
 		name="openMenu",
 		description="Открывает меню",
 		params={"имя меню"},
 		paste = "~{openMenu(\"Меню\")}~"
 	},
 }
+
+-- Добавлены новые функции:
+-- ~{server_name()}~ - Возвращает название сервера в чистом виде
+-- ~{server_ip()}~ - Возвращает IP сервера
+-- ~{arizona_server_number()}~ - Возвращает номер сервера Arizona RP
+-- ~{arizona_server_name()}~ - Возвращает название сервера Arizona. Например Phoenix
 
 function scanDirectory(directory, scanSubdirs)
 	local files = {}
@@ -478,114 +572,282 @@ function scanDirectory(directory, scanSubdirs)
 	return files, dirs
 end
 
-function CommandLoader.toMimguiTable(source)
-	local tbl = {}
+CommandLoader.imserializer = {}
 
-	tbl.name = imgui.new.char[128](u8(source.name))
-	tbl.description = imgui.new.char[512](u8(source.description))
-	tbl.enabled = imgui.new.bool(source.enabled)
-	tbl.filepath = imgui.new.char[128](source.filepath)
+function CommandLoader.imserializer.serMenu(menu)
+	local tbl = {
+		name = imgui.new.char[128](u8(menu.name)),
+		description = imgui.new.char[256](u8(menu.description or "")),
+		size = {
+			x = imgui.new.int(menu.size.x),
+			y = imgui.new.int(menu.size.y),
+		},
+		type = imgui.new.char[128](menu.type),
+	}
 
-	tbl.commands = {}
-	for _, cmd in ipairs(source.commands) do
-		local ctbl = {}
-		ctbl.name = imgui.new.char[128](u8(cmd.name))
-
-		ctbl.text = imgui.new.char[15360](u8(cmd.text))
-
-		ctbl.description = imgui.new.char[256](u8(cmd.description))
-		ctbl.enabled = imgui.new.bool(cmd.enabled)
-
-		ctbl.params = {}
-		for _, param in ipairs(cmd.params) do
-			local ptbl = {}
-			ptbl.name = imgui.new.char[128](u8(param.name))
-			ptbl.type = imgui.new.char[128](param.type)
-			ptbl.default = imgui.new.char[128](u8(param.default))
-			ptbl.required = imgui.new.bool(param.required)
-
-			table.insert(ctbl.params, ptbl)
+	if menu.type == CommandLoader.menuTypes.CHOICE then
+		tbl.choices = {}
+		for _, choice in ipairs(menu.choices) do
+			local c = {}
+			c.name = imgui.new.char[128](u8(choice.name))
+			c.text = imgui.new.char[15360](u8(choice.text))
+			table.insert(tbl.choices, c)
 		end
-		ctbl.menus = {}
-		for _, menu in ipairs(cmd.menus or {}) do
-			local m = {}
-			m.name = imgui.new.char[128](u8(menu.name))
-			m.description = imgui.new.char[256](u8(menu.description) or "")
-			m.size = {
-				x = imgui.new.int(menu.size.x),
-				y = imgui.new.int(menu.size.y),
-			}
-			m.type = imgui.new.char[128](menu.type)
-			if menu.type == CommandLoader.menuTypes.CHOICE then
-				m.choices = {}
-				for _, choice in ipairs(menu.choices) do
-					local c = {}
-					c.name = imgui.new.char[128](u8(choice.name))
-					c.text = imgui.new.char[15360](u8(choice.text))
-					table.insert(m.choices, c)
-				end
-			end
-			table.insert(ctbl.menus, m)
-		end
-
-		table.insert(tbl.commands, ctbl)
 	end
 
 	return tbl
 end
 
-function CommandLoader.fromMimguiTable(tbl)
-	local source = {}
-	source.name = u8:decode(ffi.string(tbl.name))
-	source.description = u8:decode(ffi.string(tbl.description))
-	source.enabled = tbl.enabled[0]
-	source.filepath = ffi.string(tbl.filepath or "")
+function CommandLoader.imserializer.deserMenu(menu)
+	local tbl = {
+		name = u8:decode(ffi.string(menu.name)),
+		description = u8:decode(ffi.string(menu.description)),
+		size = {
+			x = menu.size.x[0],
+			y = menu.size.y[0],
+		},
+		type = ffi.string(menu.type),
+	}
 
-	source.commands = {}
-	for _, cmd in ipairs(tbl.commands) do
-		local ctbl = {}
-		ctbl.name = u8:decode(ffi.string(cmd.name))
-		ctbl.text = u8:decode(ffi.string(cmd.text))
-		ctbl.description = u8:decode(ffi.string(cmd.description))
-		ctbl.enabled = cmd.enabled[0]
-
-		ctbl.params = {}
-		for _, param in ipairs(cmd.params) do
-			local ptbl = {}
-			ptbl.name = u8:decode(ffi.string(param.name))
-			ptbl.type = ffi.string(param.type)
-			ptbl.default = u8:decode(ffi.string(param.default))
-			ptbl.required = param.required[0]
-
-			table.insert(ctbl.params, ptbl)
+	if tbl.type == CommandLoader.menuTypes.CHOICE then
+		tbl.choices = {}
+		for _, choice in ipairs(menu.choices) do
+			local c = {}
+			c.name = u8:decode(ffi.string(choice.name))
+			c.text = u8:decode(ffi.string(choice.text))
+			table.insert(tbl.choices, c)
 		end
-		ctbl.menus = {}
-		for _, menu in ipairs(cmd.menus or {}) do
-			local m = {}
-			m.name = u8:decode(ffi.string(menu.name))
-			m.description = u8:decode(ffi.string(menu.description) or "")
-			m.size = {
-				x = menu.size.x[0],
-				y = menu.size.y[0],
-			}
-			m.type = ffi.string(menu.type)
-			print(m.type == CommandLoader.menuTypes.CHOICE, m.type, CommandLoader.menuTypes.CHOICE)
-			if m.type == CommandLoader.menuTypes.CHOICE then
-				m.choices = {}
-				for _, choice in ipairs(menu.choices) do
-					local c = {}
-					c.name = u8:decode(ffi.string(choice.name))
-					c.text = u8:decode(ffi.string(choice.text))
-					table.insert(m.choices, c)
-				end
-			end
-			table.insert(ctbl.menus, m)
-		end
-
-		table.insert(source.commands, ctbl)
 	end
 
-	return source
+	return tbl
+end
+
+function CommandLoader.imserializer.serParam(param)
+	local tbl = {
+		name = imgui.new.char[128](u8(param.name)),
+		type = imgui.new.char[128](param.type),
+		default = imgui.new.char[128](u8(param.default)),
+		required = imgui.new.bool(param.required),
+	}
+
+	return tbl
+end
+function CommandLoader.imserializer.deserParam(param)
+	local tbl = {
+		name = u8:decode(ffi.string(param.name)),
+		type = ffi.string(param.type),
+		default = u8:decode(ffi.string(param.default)),
+		required = param.required[0],
+	}
+
+	return tbl
+end
+
+function CommandLoader.imserializer.serCommand(command)
+	local tbl = {
+		name = imgui.new.char[128](u8(command.name)),
+		text = imgui.new.char[15360](u8(command.text)),
+		description = imgui.new.char[256](u8(command.description or "")),
+		enabled = imgui.new.bool(command.enabled),
+		params = {},
+		menus = {},
+	}
+
+	for _, param in ipairs(command.params) do
+		table.insert(tbl.params, CommandLoader.imserializer.serParam(param))
+	end
+
+	for _, menu in ipairs(command.menus) do
+		table.insert(tbl.menus, CommandLoader.imserializer.serMenu(menu))
+	end
+
+	return tbl
+end
+function CommandLoader.imserializer.deserCommand(command)
+	local tbl = {
+		name = u8:decode(ffi.string(command.name)),
+		text = u8:decode(ffi.string(command.text)),
+		description = u8:decode(ffi.string(command.description)),
+		enabled = command.enabled[0],
+		params = {},
+		menus = {},
+	}
+
+	for _, param in ipairs(command.params) do
+		table.insert(tbl.params, CommandLoader.imserializer.deserParam(param))
+	end
+
+	for _, menu in ipairs(command.menus) do
+		table.insert(tbl.menus, CommandLoader.imserializer.deserMenu(menu))
+	end
+
+	return tbl
+end
+
+function CommandLoader.imserializer.serNote(note)
+	local tbl = {
+		name = imgui.new.char[128](u8(note.name)),
+		text = imgui.new.char[15360](u8(note.text)),
+		enabled = imgui.new.bool(note.enabled),
+		pinned = imgui.new.bool(note.pinned),
+		openOnStart = imgui.new.bool(note.openOnStart),
+		pos = {
+			x = imgui.new.int(note.pos.x),
+			y = imgui.new.int(note.pos.y),
+		},
+		size = {
+			x = imgui.new.int(note.size.x),
+			y = imgui.new.int(note.size.y),
+		},
+		FPS = imgui.new.float(note.FPS),
+	}
+
+	return tbl
+end
+
+function CommandLoader.imserializer.deserNote(note)
+	local tbl = {
+		name = u8:decode(ffi.string(note.name)),
+		text = u8:decode(ffi.string(note.text)),
+		enabled = note.enabled[0],
+		pinned = note.pinned[0],
+		openOnStart = note.openOnStart[0],
+		pos = {
+			x = note.pos.x[0],
+			y = note.pos.y[0],
+		},
+		size = {
+			x = note.size.x[0],
+			y = note.size.y[0],
+		},
+		FPS = note.FPS[0],
+	}
+
+	return tbl
+end
+
+function CommandLoader.imserializer.serSource(source)
+	local tbl = {
+		name = imgui.new.char[128](u8(source.name)),
+		author = imgui.new.char[128](u8(source.author or "")),
+		description = imgui.new.char[512](u8(source.description or "")),
+		enabled = imgui.new.bool(source.enabled),
+		filepath = imgui.new.char[128](source.filepath),
+		commands = {},
+		notes = {},
+	}
+
+	for _, cmd in ipairs(source.commands) do
+		table.insert(tbl.commands, CommandLoader.imserializer.serCommand(cmd))
+	end
+
+	for _, note in ipairs(source.notes) do
+		table.insert(tbl.notes, CommandLoader.imserializer.serNote(note))
+	end
+
+	return tbl
+end
+
+function CommandLoader.imserializer.deserSource(source)
+	local tbl = {
+		name = u8:decode(ffi.string(source.name)),
+		author = u8:decode(ffi.string(source.author)),
+		description = u8:decode(ffi.string(source.description)),
+		enabled = source.enabled[0],
+		filepath = ffi.string(source.filepath),
+		commands = {},
+		notes = {},
+	}
+
+	for _, cmd in ipairs(source.commands) do
+		table.insert(tbl.commands, CommandLoader.imserializer.deserCommand(cmd))
+	end
+
+	for _, note in ipairs(source.notes) do
+		table.insert(tbl.notes, CommandLoader.imserializer.deserNote(note))
+	end
+
+	return tbl
+end
+
+function CommandLoader.imserializer.newChooseMenu(tbl)
+	tbl = tbl or {}
+	return {
+		name = tbl.name or imgui.new.char[256]("menu"),
+		description = tbl.description or imgui.new.char[256](""),
+		type = tbl.type or commandloader.menuTypes.CHOICE,
+		size = tbl.size or {
+			x = imgui.new.int(200),
+			y = imgui.new.int(125),
+		},
+		choices = tbl.choices or {},
+	}
+end
+
+function CommandLoader.imserializer.newChooseMenuChoice(tbl)
+	tbl = tbl or {}
+	return {
+		name = tbl.name or imgui.new.char[128](""),
+		text = tbl.text or imgui.new.char[15360](""),
+	}
+end
+
+function CommandLoader.imserializer.newParam(tbl)
+	tbl = tbl or {}
+	return {
+		name = tbl.name or imgui.new.char[128]("param"),
+		type = tbl.type or imgui.new.char[128]("string"),
+		default = tbl.default or imgui.new.char[128](""),
+		required = tbl.required or imgui.new.bool(true),
+	}
+end
+
+function CommandLoader.imserializer.newCommand(tbl)
+	tbl = tbl or {}
+	return {
+		name = tbl.name or imgui.new.char[256]("cmd" .. #state.currentMsource.commands + 1),
+		text = tbl.text or imgui.new.char[15360](""),
+		description = tbl.description or imgui.new.char[256](""),
+		enabled = tbl.enabled or imgui.new.bool(true),
+		params = tbl.params or {},
+		menus = tbl.menus or {},
+	}
+end
+
+function CommandLoader.imserializer.newNote(tbl)
+	tbl = tbl or {}
+	return {
+		name = tbl.name or imgui.new.char[128]("note"),
+		text = tbl.text or imgui.new.char[15360](""),
+		enabled = tbl.enabled or imgui.new.bool(true),
+		pinned = tbl.pinned or imgui.new.bool(false),
+		openOnStart = tbl.openOnStart or imgui.new.bool(false),
+		pos = tbl.pos or {
+			x = imgui.new.int(100),
+			y = imgui.new.int(100),
+		},
+		size = tbl.size or {
+			x = imgui.new.int(100),
+			y = imgui.new.int(100),
+		},
+		FPS = tbl.FPS or imgui.new.float(0.0),
+	}
+end
+
+function CommandLoader.newSource(tbl)
+	tbl = tbl or {}
+	return {
+		name = tbl.name or ("profile" .. #CommandLoader.sources + 1),
+		description = tbl.description or "",
+		enabled = tbl.enabled or true,
+		filepath = tbl.filepath or util.path_join(
+			getWorkingDirectory(),
+			commandloader.dir,
+			"profile" .. tostring(#commandloader.sources + 1) .. ".json"
+		),
+		commands = tbl.commands or {},
+		notes = tbl.notes or {},
+	}
 end
 
 ---@param source CommandSource
@@ -609,6 +871,15 @@ function CommandLoader.validateSource(source, filename)
 	for i, cmd in ipairs(source.commands) do
 		local command = CommandLoader.validateCommand(cmd)
 		source.commands[i] = command
+	end
+
+	if not source.notes then
+		source.notes = {}
+	end
+
+	for i, note in ipairs(source.notes) do
+		local note = CommandLoader.validateNote(note)
+		source.notes[i] = note
 	end
 
 	return source
@@ -691,6 +962,39 @@ function CommandLoader.validateCommand(command)
 	end
 
 	return command
+end
+
+---@param note Note
+function CommandLoader.validateNote(note)
+	if isEmpty(note.name) then
+		note.name = "Note"
+	end
+
+	if note.enabled == nil then
+		note.enabled = true
+	end
+
+	if note.pinned == nil then
+		note.pinned = false
+	end
+
+	if note.openOnStart == nil then
+		note.openOnStart = false
+	end
+
+	if not note.pos then
+		note.pos = {x = 100, y = 100}
+	end
+
+	if not note.size then
+		note.size = {x = 100, y = 100}
+	end
+
+	if not note.FPS then
+		note.FPS = 0
+	end
+
+	return note
 end
 
 function CommandLoader.processFile(filePath)
@@ -781,11 +1085,79 @@ function CommandLoader.unregisterCommands()
 	end
 end
 
+local cmdstate = {
+	---@type {waitf: number, waitm: number, stop: boolean}[]
+	cmds = {},
+}
+
+function CommandLoader.processLine(iter, env)
+	local line
+	if type(iter) == "string" then
+		line = iter
+	else
+		line = iter()
+	end
+
+	if not line then
+		return false
+	end
+
+	-- if line contain ~{ but not contain }~ then we need to concat lines
+	while line and line:find("~{") and not line:find("}~") do
+		line = line .. "\n" .. iter()
+	end
+
+	local func
+	line = line:gsub("~{(.-)}~", function(expr)
+		-- if expression is multiline, we need to add return at begin of end line if it's not present
+		
+		--check for multiline and modify last line
+		if expr:find("\n") then
+			local lines = {}
+			for l in expr:gmatch("[^\r\n]+") do
+				table.insert(lines, l)
+			end
+			local last = lines[#lines]
+			if not last:match("^%s*[%w_]+%s*=%s*") and not last:match("^%s*return%s+") then
+				lines[#lines] = "return " .. last
+			end
+			expr = table.concat(lines, "\n")
+		elseif not expr:match("^%s*[%w_]+%s*=%s*") and not expr:match("^%s*return%s+") then
+			expr = "return "..expr
+		end
+
+		local prot = sandbox.protect(expr, {
+			env = env
+		})
+		local ok, result = pcall(prot)
+		
+		if not ok then
+			print(result)
+			sampAddChatMessage(result, -1)
+			return ""
+		end
+		func = prot
+		return tostring(result or "")
+	end)
+	return line, func
+end
+
 function CommandLoader.registerCommands()
 	for _, source in ipairs(CommandLoader.sources) do
 		for _, cmd in ipairs(source.commands) do
 			if source.enabled and not cmd.hasErrors and cmd.enabled then
 				sampRegisterChatCommand(cmd.name, function(params)
+					if params == "/stop" and cmdstate.cmds[cmd.name] then
+						cmdstate.cmds[cmd.name].stop = true
+						return
+					end
+					
+					if cmdstate.cmds[cmd.name] then
+						chat_error("Команда " .. cmd.name .. " уже выполняется")
+						chat_error("Если вы хотите прервать выполнение, введите /" .. cmd.name .. " /stop")
+						return
+					end
+
 					local args = {}
 					local aparam = string.gmatch(params, "[^%s]+")
 					local vararg = false
@@ -794,10 +1166,7 @@ function CommandLoader.registerCommands()
 						local ap = aparam()
 
 						if not ap and pdata.required then
-							sampAddChatMessage(
-								cmd.name..": Использование: " .. generateUsage(cmd.name, cmd.params),
-								-1
-							)
+							chat_info(cmd.name..": Использование: " .. generateUsage(cmd.name, cmd.params))
 							return
 						elseif not ap then
 							args[pdata.name] = pdata.default or ""
@@ -827,74 +1196,60 @@ function CommandLoader.registerCommands()
 						end
 					end
 				
+					cmdstate.cmds[cmd.name] = {}
 
-					local env = util.merge(args, cfg.general, CommandLoader.env)
-
-					local function processLine(iter, env)
-						local line = iter()
-
-						if not line then
-							return false
-						end
-
-						-- if line contain ~{ but not contain }~ then we need to concat lines
-						while line and line:find("~{") and not line:find("}~") do
-							line = line .. "\n" .. iter()
-						end
-
-						line = line:gsub("~{(.-)}~", function(expr)
-							-- if expression is multiline, we need to add return at begin of end line if it's not present
-							
-							--check for multiline and modify last line
-							if expr:find("\n") then
-								local lines = {}
-								for l in expr:gmatch("[^\r\n]+") do
-									table.insert(lines, l)
-								end
-								local last = lines[#lines]
-								if not last:match("^%s*[%w_]+%s*=%s*") and not last:match("^%s*return%s+") then
-									lines[#lines] = "return " .. last
-								end
-								expr = table.concat(lines, "\n")
-							elseif not expr:match("^%s*[%w_]+%s*=%s*") and not expr:match("^%s*return%s+") then
-								expr = "return "..expr
-							end
-
-							local ok, result, penv = pcall(sandbox.run, expr, {
-								env = env,
-							})
-							env = penv
-							if not ok then
-								print(result)
-								sampAddChatMessage(result, -1)
-								return ""
-							end
-							return tostring(result or "")
-						end)
-						return line
-					end
+					local env = util.merge(args, cfg.general, CommandLoader.env, {
+						v = {}
+					})
 					
-					local function processLines(text)
+					local function processLines(text, s)
 						local i = 1
 						local iter = text:gmatch("[^\r\n]+")
-						
-						while true do
-							line = processLine(iter, env)
 
+						function env.wait(m)
+							s.waitm = tonumber(m) or false
+						end
+
+						function env.waitif(cond, m)
+							if cond then
+								s.waitf = tonumber(m or 50)
+							else
+								s.waitf = false
+							end
+						end
+
+						function env.stop()
+							s.stop = true
+						end
+
+						while not s.stop do
+							line, func = CommandLoader.processLine(iter, env)
 							if line == false then
+								s.stop = true
 								break
 							end
 
-							if state.waitm then
-								wait(state.waitm)
-								state.waitm = nil
+							while s.waitf and not s.stop do
+								wait(s.waitf)
+								func()
+							end
+
+							if s.waitm then
+								wait(s.waitm)
+								s.waitm = nil
 							elseif i > 1 and not isEmpty(line) then
 								wait(cfg.general.default_delay)
 							end
-							if not isEmpty(line) then
+
+							if line and not isEmpty(line) then
 								i = i + 1
 								sampProcessChatInput(line)
 							end
+						end
+
+						if s.stop then
+							s = nil
+							cmdstate.cmds[cmd.name] = nil
 						end
 					end
 
@@ -911,7 +1266,7 @@ function CommandLoader.registerCommands()
 								onChoice = function (choice)
 									env.choice = choice.name
 									lua_thread.create(function()
-										processLines(choice.text)
+										processLines(choice.text, {})
 									end)
 								end
 							}))
@@ -929,9 +1284,9 @@ function CommandLoader.registerCommands()
 
 						return result
 					end
-
+					
 					lua_thread.create(function()
-						processLines(cmd.text)
+						processLines(cmd.text, cmdstate.cmds[cmd.name])
 					end)
 				end)
 			end

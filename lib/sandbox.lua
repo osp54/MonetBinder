@@ -1,60 +1,10 @@
 local sandbox = {
-	_VERSION = "kong-lua-sandbox 1.0",
-	_DESCRIPTION = "A pure-lua solution for running untrusted Lua code.",
-	_URL = "https://github.com/kong/kong-lua-sandbox",
-	_LICENSE = [[
-      MIT LICENSE
-  
-      Copyright (c) 2021 Kong Inc
-  
-      Permission is hereby granted, free of charge, to any person obtaining a
-      copy of this software and associated documentation files (the
-      "Software"), to deal in the Software without restriction, including
-      without limitation the rights to use, copy, modify, merge, publish,
-      distribute, sublicense, and/or sell copies of the Software, and to
-      permit persons to whom the Software is furnished to do so, subject to
-      the following conditions:
-  
-      The above copyright notice and this permission notice shall be included
-      in all copies or substantial portions of the Software.
-  
-      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-      OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-      MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-      IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-      CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-      TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-      SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-    ]],
 }
-
--- quotas don't work in LuaJIT since debug.sethook works differently there
 local quota_supported = type(_G.jit) == "nil"
 sandbox.quota_supported = quota_supported
-
--- PUC-Rio Lua 5.1 does not support deactivation of bytecode
 local bytecode_blocked = _ENV or type(_G.jit) == "table"
 sandbox.bytecode_blocked = bytecode_blocked
-
--- The base environment is merged with the given env option (or an empty table, if no env provided)
---
 local BASE_ENV = {};
-
--- List of unsafe packages/functions:
---
--- * string.rep: can be used to allocate millions of bytes in 1 operation
--- * {set|get}metatable: can be used to modify the metatable of global objects (strings, integers)
--- * collectgarbage: can affect performance of other systems
--- * dofile: can access the server filesystem
--- * _G: It has access to everything. It can be mocked to other things though.
--- * load{file|string}: All unsafe because they can grant acces to global env
--- * raw{get|set|equal}: Potentially unsafe
--- * module|require|module: Can modify the host settings
--- * string.dump: Can display confidential server info (implementation of functions)
--- * math.randomseed: Can affect the host sytem
--- * io.*, os.*: Most stuff there is unsafe, see below for exceptions
-
--- Safe packages/functions below
 ([[
   
   _VERSION assert error    ipairs   next pairs
@@ -100,8 +50,6 @@ end
 	BASE_ENV[module_name] = protect_module(BASE_ENV[module_name], module_name)
 end)
 
--- auxiliary functions/variables
-
 local string_rep = string.rep
 
 local function sethook(f, key, quota)
@@ -116,7 +64,6 @@ local function cleanup()
 	string.rep = string_rep -- luacheck: no global
 end
 
--- Public interface: sandbox.protect
 table.pack = table.pack or function(...)
     return {n = select("#", ...), ...}
 end
@@ -176,16 +123,14 @@ function sandbox.protect(code, options)
 			error(t[2])
 		end
 
-		return table.unpack(t, 2, t.n), env
+		return table.unpack(t, 2, t.n)
 	end
 end
 
--- Public interface: sandbox.run
 function sandbox.run(code, options, ...)
 	return sandbox.protect(code, options)(...)
 end
 
--- make sandbox(f) == sandbox.protect(f)
 setmetatable(sandbox, {
 	__call = function(_, code, o)
 		return sandbox.protect(code, o)

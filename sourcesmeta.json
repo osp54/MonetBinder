@@ -12,6 +12,12 @@
     "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/autoschool.json"
   },
   {
+    "name": "Рук.состав",
+    "description": "Отыгровки для руководящей должности",
+    "author": "Joake",
+    "download_link": "https://raw.githubusercontent.com/osp54/MonetBinder/main/cmd_sources/managementteam.json"
+  },
+  {
     "name": "МЮ",
     "description": "Отыгровки для МЮ",
     "author": "Joake",

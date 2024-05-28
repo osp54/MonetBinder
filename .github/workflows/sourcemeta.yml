@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'cmd_sources/**'
-  workflow_dispatch:
 
 jobs:
   parse-json:

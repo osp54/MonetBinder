@@ -14,7 +14,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-
+    - id: files
+      uses: jitterbit/get-changed-files@v1
+      with:
+        format: 'json'
+    - name: Export all files in cmd_sources that have added/modified
+      id: export-files
+      run: |
+        echo "::set-output name=files::$(jq -r '.[] | select(startswith("cmd_sources/"))' <<<"${{ steps.files.outputs.added_modified }}")"
     - name: Use Node.js 16
       uses: actions/setup-node@v2
       with:
@@ -25,14 +32,14 @@ jobs:
 
     - name: Run the script
       run: node sources-meta.js
-
+    - name: Release cmd_sources
+      if: ${{ steps.export-files.outputs.files != '' }}
+      uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
+      with:
+        tag_name: "sources-v1"
+        files: ${{ steps.export-files.outputs.files }}
     - name: Commit and Push changes
       uses: EndBug/add-and-commit@v9
       with:
         message: "Updated sourcesmeta.json"
         add: "sourcesmeta.json"
-    - name: Release cmd_sources
-      uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
-      with:
-        tag_name: "sources-v1"
-        files: cmd_sources/*

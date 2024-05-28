@@ -15,14 +15,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-      if: ${{ github.event_name == 'push' }}
+    - uses: actions/checkout@v3
+      if: github.event_name == 'push'
     - id: files
       uses: jitterbit/get-changed-files@v1
       with:
        format: 'space-delimited'
     - name: Export all files in cmd_sources that have added/modified
-      if: ${{ github.event_name == 'push' }}
+      if: github.event_name == 'push'
       id: export-files
       run: |
         echo "::set-output name=files::$(echo "${{ steps.files.outputs.added_modified }}" | tr ' ' '\n' | grep "^cmd_sources/" | tr '\n' ' ')"
@@ -32,7 +32,7 @@ jobs:
         node-version: 16
 
     - name: Release cmd_sources
-      if: ${{ github.event_name == 'push' }}
+      if: github.event_name == 'push'
       id: release
       uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
       with:

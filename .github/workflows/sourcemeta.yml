@@ -33,7 +33,6 @@ jobs:
         add: "sourcesmeta.json"
     - name: Release cmd_sources
       uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
-      if: startsWith(github.ref, 'refs/tags/')
       with:
         tag_name: "sources-v1"
         files: cmd_sources/*

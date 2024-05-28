@@ -1,15 +1,41 @@
 const fs = require('fs').promises;
 const iconv = require('iconv-lite');
 const path = require('path');
+const https = require('https');
 
 const sourceDir = path.join(__dirname, 'cmd_sources');
 const outputFile = path.join(__dirname, 'sourcesmeta.json');
 const releaseId = process.env.RELEASE_ID;
 
 function getReleaseMetadata() {
-  return fetch(`https://api.github.com/repos/osp54/MonetBinder/releases/${releaseId}`)
-    .then(response => response.json())
-    .then(data => data);
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: `/repos/osp54/MonetBinder/releases/${releaseId}`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Node.js',
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        resolve(JSON.parse(data));
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.end();
+  });
 }
 
 getReleaseMetadata()

@@ -16,8 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-      if: github.event_name == 'push'
     - id: files
+      if: github.event_name == 'push'
       uses: jitterbit/get-changed-files@v1
       with:
        format: 'space-delimited'

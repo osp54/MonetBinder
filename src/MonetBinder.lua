@@ -570,11 +570,6 @@ imgui.OnInitialize(function()
 	imgui.GetIO().IniFilename = nil
 	fa.Init(14 * MDS)
 	imgui.GetStyle():ScaleAllSizes(MDS)
-
-    local glyph_ranges = imgui.GetIO().Fonts:GetGlyphRangesCyrillic()
-    local fontpath = util.path_join(getWorkingDirectory(), "lib", "mimgui", 'trebucbd.ttf')
-
-    smal = imgui.GetIO().Fonts:AddFontFromFileTTF(fontpath, 12*MDS, _, glyph_ranges)
 	
 	if cfg.ui.theme == 0 then
 		grayTheme()
@@ -1523,7 +1518,10 @@ end, function(player)
 					end
 					imgui.SameLine()
 					if imgui.Button(fa.EYE .. "##note" .. i, imgui.ImVec2(imutil.GetMiddleColumnX(4), 25 * MDS)) then
-						table.insert(state.openedNotes, source.notes[i])
+						table.insert(state.openedNotes, util.merge(commandloader.sources[state.selectedProfile].notes[i], {
+							profile = state.selectedProfile,
+							index = i,
+						}))
 					end
 					imgui.NextColumn()
 					imgui.Separator()
@@ -1623,22 +1621,50 @@ end, function (player)
 			imgui.Cond.FirstUseEver,
 			imgui.ImVec2(0.5, 0.5)
 		)
+		local pos = imgui.GetWindowPos()
+		local size = imgui.GetWindowSize()
+
 		local flag = note.pinned and imgui.WindowFlags.NoTitleBar
 								+ imgui.WindowFlags.NoResize
 								+ imgui.WindowFlags.NoMove
 								+ imgui.WindowFlags.NoBackground
-								or nil
+								or imgui.WindowFlags.NoTitleBar
 		imgui.Begin(u8(note.name), imgui.new.bool(true), flag)
 		imgui.BeginChild("##note", imgui.ImVec2(0, imgui.GetWindowSize().y - 15 * MDS - imgui.GetCursorPosY() - imgui.GetStyle().FramePadding.y * 2), true)
-		imgui.TextWrapped(u8(note.text))
+		imgui.TextWrapped(u8(note.formattedText or note.text))
 		imgui.EndChild()
-		imgui.PushFont(smal)
-		imgui.SetCursorPosX(imgui.GetWindowWidth() / 2 - imgui.GetStyle().FramePadding.x * 2)
-		if imgui.Button((note.pinned and u8"Открепить" or u8"Закрепить"), imgui.ImVec2(imgui.GetWindowWidth() / 2 - imgui.GetStyle().FramePadding.x * 2, 15 * MDS)) then
+		if imgui.Button(fa.XMARK, imgui.ImVec2(imutil.GetMiddleButtonX(2), 15 * MDS)) then
+			table.remove(state.openedNotes, i)
+		end
+		imgui.SameLine()
+		if imgui.Button((note.pinned and u8"Открепить" or u8"Закрепить"), imgui.ImVec2(imutil.GetMiddleButtonX(2), 15 * MDS)) then
 			note.pinned = not note.pinned
 		end
-		imgui.PopFont()
 		imgui.End()
+
+		local function isPosOrSizeChanged()
+			return pos.x ~= note.pos.x or pos.y ~= note.pos.y or size.x ~= note.size.x or size.y ~= note.size.y
+		end
+
+		if isPosOrSizeChanged() then
+			print(note.profile)
+			print(note.index)
+			local dn = commandloader.sources[note.profile].notes[note.index]
+
+			note.pos.x = pos.x
+			note.pos.y = pos.y
+			note.size.x = size.x
+			note.size.y = size.y
+
+			dn.pos = note.pos
+			dn.size = note.size
+
+
+			print(dn)
+			print(note.profile)
+			print(note.index)
+			commandloader.saveSource(commandloader.sources[note.profile])
+		end
 	end
 end)
 
@@ -1773,22 +1799,25 @@ function main()
 		v = {}
 	})
 	while true do
-		wait(60)
-
+		wait(0)
 		for i, note in ipairs(state.openedNotes) do
-			local iter = note.text:gmatch("[^\r\n]+")
+			note.lastUpdate = note.lastUpdate or os.clock()
+			if note.FPS > 0 and os.clock() - note.lastUpdate > 1 / note.FPS then
+				note.lastUpdate = os.clock()
+				local iter = note.text:gmatch("[^\r\n]+")
 
-			local text = ""
-			while true do
-				local line = commandloader.processLine(iter, env)
-				if line then
-					text = text .. line .. "\n"
-				else
-					break
+				local text = ""
+				while true do
+					local line = commandloader.processLine(iter, env)
+					if line then
+						text = text .. line .. "\n"
+					elseif line == false then
+						break
+					end
 				end
-			end
 
-			state.openedNotes[i].text = text
+				note.formattedText = text
+			end
 		end
 	end
 end

@@ -100,10 +100,12 @@ function imutil.ItemSelector(name, items, selected, fixedSize, dontDrawBorders)
 end
 
 function imutil.GetMiddleColumnX(count)
-	local window_width = imgui.GetWindowWidth()
-	local total_spacing = imgui.GetStyle().ItemSpacing.x * (count - 1)
-	local total_columns_width = window_width - (total_spacing + imgui.GetStyle().FramePadding.x * 2 * count)
-	return total_columns_width / (3 * count)
+    local column_width = imgui.GetColumnWidth()
+    local item_spacing = imgui.GetStyle().ItemSpacing.x
+    local inner_spacing = imgui.GetStyle().ItemInnerSpacing.x
+    local total_spacing = (count - 1) * (item_spacing + inner_spacing)
+    local available_width = column_width - total_spacing
+    return available_width / count
 end
 
 function imutil.GetMiddleButtonX(count)

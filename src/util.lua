@@ -789,6 +789,7 @@ function util.downloadToFile(url, path, callback, progressInterval)
 
 	if not MONET_VERSION then
 		local dlstatus = require('moonloader').download_status
+---@diagnostic disable-next-line: deprecated
 		return downloadUrlToFile(url, path, function(id, status, p1, p2)
 			if status == dlstatus.STATUS_DOWNLOADINGDATA then
 				callback("downloading", p1, p2)
@@ -815,7 +816,7 @@ function util.downloadToFile(url, path, callback, progressInterval)
 		end
 		local total_size = h["content-length"]
 
-		local f = io.open(path, "wb")
+		local f = io.open(path, "w+b")
 		if not f then
 			return false, "failed to open file"
 		end
@@ -878,16 +879,5 @@ function util.downloadToFile(url, path, callback, progressInterval)
 		checkStatus()
 	end)
 end
-
--- example usage:
--- util.downloadToFile("https://example.com/file.zip", "file.zip", function(type, pos, total_size)
---    if type == "downloading" then
---        print(("Скачивание %d/%d"):format(pos, total_size))
---    elseif type == "finished" then
---        print("Скачивание завершено")
---    elseif type == "error" then
---        print("Ошибка скачивания: " .. pos)
---    end
--- end)
 
 return util

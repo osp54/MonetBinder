@@ -5,13 +5,12 @@ const https = require('https');
 
 const sourceDir = path.join(__dirname, 'cmd_sources');
 const outputFile = path.join(__dirname, 'sourcesmeta.json');
-const releaseId = process.env.RELEASE_ID;
 
 function getReleaseMetadata() {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: 'api.github.com',
-      path: `/repos/osp54/MonetBinder/releases/${releaseId}`,
+      path: `/repos/osp54/MonetBinder/releases/tags/sources-v1`,
       method: 'GET',
       headers: {
         'User-Agent': 'Node.js',

@@ -29,14 +29,16 @@ jobs:
     - name: Install dependencies
       run: npm install fs path iconv-lite
 
-    - name: Run the script
-      run: node sources-meta.js
     - name: Release cmd_sources
-      if: ${{ steps.export-files.outputs.files != '' }}
+      id: release
       uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
       with:
         tag_name: "sources-v1"
         files: ${{ steps.export-files.outputs.files }}
+    - name: Run the script
+      env:
+        RELEASE_ID: ${{ steps.release.outputs.id }}
+      run: node sources-meta.js
     - name: Commit and Push changes
       uses: EndBug/add-and-commit@v9
       with:

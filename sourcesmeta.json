@@ -1,5 +1,12 @@
 [
   {
+    "name": "Рук.состав",
+    "description": "Отыгровки для руководящей должности",
+    "author": "Joake",
+    "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/managementteam.json",
+    "download_count": 1
+  },
+  {
     "name": "ГЦЛ",
     "description": "Отыгровки для Центра Лицензирования.",
     "author": "ospx",
@@ -11,13 +18,6 @@
     "description": "Отыгровки для правительства.",
     "author": "Jake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/Government.json",
-    "download_count": 0
-  },
-  {
-    "name": "Рук.состав",
-    "description": "Отыгровки для руководящей должности",
-    "author": "Joake",
-    "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/managementteam.json",
     "download_count": 0
   },
   {

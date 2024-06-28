@@ -13,37 +13,41 @@ on:
 jobs:
   parse-json:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-    - id: files
-      if: github.event_name == 'push'
-      uses: jitterbit/get-changed-files@v1
-      with:
-       format: 'space-delimited'
-    - name: Export all files in cmd_sources that have added/modified
-      if: github.event_name == 'push'
-      id: export-files
-      run: |
-        echo "::set-output name=files::$(echo "${{ steps.files.outputs.added_modified }}" | tr ' ' '\n' | grep "^cmd_sources/" | tr '\n' ' ')"
-    - name: Use Node.js 16
-      uses: actions/setup-node@v2
-      with:
-        node-version: 16
+      - uses: actions/checkout@v3
 
-    - name: Release cmd_sources
-      if: github.event_name == 'push'
-      id: release
-      uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
-      with:
-        tag_name: "sources-v1"
-        files: ${{ steps.export-files.outputs.files }}
-    - name: Run the script
-      run: |
-        npm install fs path iconv-lite
-        node sources-meta.js
-    - name: Commit and Push changes
-      uses: EndBug/add-and-commit@v9
-      with:
-        message: "Updated sourcesmeta.json"
-        add: "sourcesmeta.json"
+      - id: files
+        if: github.event_name == 'push'
+        uses: jitterbit/get-changed-files@v1
+        with:
+          format: 'space-delimited'
+
+      - name: Export all files in cmd_sources that have added/modified
+        if: github.event_name == 'push'
+        id: export-files
+        run: |
+          echo "::set-output name=files::$(echo "${{ steps.files.outputs.added_modified }}" | tr ' ' '\n' | grep "^cmd_sources/" | sed 's|^|${{ github.workspace }}/|' | tr '\n' ' ')"
+
+      - name: Use Node.js 16
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+
+      - name: Release cmd_sources
+        if: github.event_name == 'push'
+        id: release
+        uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
+        with:
+          tag_name: "sources-v1"
+          files: ${{ steps.export-files.outputs.files }}
+
+      - name: Run the script
+        run: |
+          npm install fs path iconv-lite
+          node sources-meta.js
+
+      - name: Commit and Push changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Updated sourcesmeta.json"
+          add: "sourcesmeta.json"

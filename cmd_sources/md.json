@@ -310,6 +310,6 @@
     "name": "МО", 
     "author": "@quyzzi",
     "description": "Отыгровки для работников Армии",
-    "notes": {},
+    "notes": {}, 
     "enabled": true
 }

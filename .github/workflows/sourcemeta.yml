@@ -45,7 +45,7 @@ jobs:
       - name: Release cmd_sources
         if: github.event_name == 'push'
         id: release
-        uses: softprops/action-gh-release@v4
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: "sources-v1"
           files: ${{ steps.export-files.outputs.files }}

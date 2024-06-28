@@ -20,13 +20,22 @@ jobs:
         if: github.event_name == 'push'
         uses: jitterbit/get-changed-files@v1
         with:
-          format: 'space-delimited'
+          format: 'json'
 
       - name: Export all files in cmd_sources that have added/modified
         if: github.event_name == 'push'
         id: export-files
         run: |
-          echo "::set-output name=files::$(echo "${{ steps.files.outputs.added_modified }}" | tr ' ' '\n' | grep "^cmd_sources/" | sed 's|^|${{ github.workspace }}/|' | tr '\n' ' ')"
+          CHANGED_FILES=$(echo '${{ steps.files.outputs.added_modified }}' | jq -r '.[]' | grep "^cmd_sources/")
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Debug file list
+        if: github.event_name == 'push'
+        run: |
+          echo "Files to release:"
+          echo "${{ steps.export-files.outputs.files }}"
 
       - name: Use Node.js 16
         uses: actions/setup-node@v2
@@ -36,7 +45,7 @@ jobs:
       - name: Release cmd_sources
         if: github.event_name == 'push'
         id: release
-        uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
+        uses: softprops/action-gh-release@v4
         with:
           tag_name: "sources-v1"
           files: ${{ steps.export-files.outputs.files }}

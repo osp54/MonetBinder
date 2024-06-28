@@ -307,7 +307,7 @@
             "enabled": true
         }
     ],
-    "name": "МО",
+    "name": "МО", 
     "author": "@quyzzi",
     "description": "Отыгровки для работников Армии",
     "notes": {},

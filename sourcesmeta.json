@@ -4,28 +4,28 @@
     "description": "Отыгровки для руководящей должности",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/managementteam.json",
-    "download_count": 412
+    "download_count": 425
   },
   {
     "name": "МЮ",
     "description": "Отыгровки для МЮ",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/mj.json",
-    "download_count": 287
+    "download_count": 299
   },
   {
     "name": "ГЦЛ",
     "description": "Отыгровки для Центра Лицензирования.",
     "author": "ospx",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/autoschool.json",
-    "download_count": 141
+    "download_count": 151
   },
   {
     "name": "МЗ",
     "description": "Отыгровки для Министерства Здравоохранения.",
     "author": "ospx",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/mz.json",
-    "download_count": 95
+    "download_count": 100
   },
   {
     "name": "Пра-во",
@@ -39,7 +39,7 @@
     "description": "Отыгровки для работников Армии",
     "author": "@quyzzi",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/md.json",
-    "download_count": 49
+    "download_count": 50
   },
   {
     "name": "СТК",

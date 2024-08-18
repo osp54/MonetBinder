@@ -11,7 +11,7 @@
     "description": "Отыгровки для МЮ",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/mj.json",
-    "download_count": 362
+    "download_count": 364
   },
   {
     "name": "ГЦЛ",
@@ -28,18 +28,18 @@
     "download_count": 130
   },
   {
+    "name": "МО",
+    "description": "Отыгровки для работников Армии",
+    "author": "@quyzzi",
+    "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/md.json",
+    "download_count": 84
+  },
+  {
     "name": "Пра-во",
     "description": "Отыгровки для правительства.",
     "author": "Jake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/Government.json",
     "download_count": 83
-  },
-  {
-    "name": "МО",
-    "description": "Отыгровки для работников Армии",
-    "author": "@quyzzi",
-    "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/md.json",
-    "download_count": 82
   },
   {
     "name": "СТК",

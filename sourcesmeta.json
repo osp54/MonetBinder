@@ -4,7 +4,7 @@
     "description": "Отыгровки для руководящей должности",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/managementteam.json",
-    "download_count": 520
+    "download_count": 521
   },
   {
     "name": "МЮ",
@@ -25,7 +25,7 @@
     "description": "Отыгровки для Министерства Здравоохранения.",
     "author": "ospx",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/mz.json",
-    "download_count": 135
+    "download_count": 136
   },
   {
     "name": "МО",

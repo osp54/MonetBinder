@@ -4,7 +4,7 @@
     "description": "Отыгровки для руководящей должности",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/managementteam.json",
-    "download_count": 584
+    "download_count": 586
   },
   {
     "name": "МЮ",
@@ -39,7 +39,7 @@
     "description": "Отыгровки для правительства.",
     "author": "Jake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/Government.json",
-    "download_count": 91
+    "download_count": 92
   },
   {
     "name": "СТК",

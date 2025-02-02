@@ -4,55 +4,55 @@
     "description": "Отыгровки для руководящей должности",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/managementteam.json",
-    "download_count": 1029
+    "download_count": 1059
   },
   {
     "name": "МЮ",
     "description": "Отыгровки для МЮ",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/mj.json",
-    "download_count": 692
+    "download_count": 708
   },
   {
     "name": "ГЦЛ",
     "description": "Отыгровки для Центра Лицензирования.",
     "author": "ospx",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/autoschool.json",
-    "download_count": 397
+    "download_count": 411
   },
   {
     "name": "МЗ",
     "description": "Отыгровки для Министерства Здравоохранения.",
     "author": "ospx",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/mz.json",
-    "download_count": 295
+    "download_count": 306
   },
   {
     "name": "МО",
     "description": "Отыгровки для работников Армии",
     "author": "@quyzzi",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/md.json",
-    "download_count": 214
+    "download_count": 222
   },
   {
     "name": "Пра-во",
     "description": "Отыгровки для правительства.",
     "author": "Jake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/Government.json",
-    "download_count": 153
+    "download_count": 156
   },
   {
     "name": "СТК",
     "description": "Отыгровки для Страховой компании. ",
     "author": "Jake ",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/insurance.json",
-    "download_count": 127
+    "download_count": 131
   },
   {
     "name": "Прокуратура",
     "description": "Отыгровки для Прокуратуры ",
     "author": "Jake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/prosecutors.json",
-    "download_count": 101
+    "download_count": 105
   }
 ]

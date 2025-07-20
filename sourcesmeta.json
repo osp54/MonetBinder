@@ -4,14 +4,14 @@
     "description": "Отыгровки для руководящей должности",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/managementteam.json",
-    "download_count": 1381
+    "download_count": 1384
   },
   {
     "name": "МЮ",
     "description": "Отыгровки для МЮ",
     "author": "Joake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/mj.json",
-    "download_count": 931
+    "download_count": 933
   },
   {
     "name": "ГЦЛ",
@@ -25,28 +25,28 @@
     "description": "Отыгровки для Министерства Здравоохранения.",
     "author": "ospx",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/mz.json",
-    "download_count": 373
+    "download_count": 374
   },
   {
     "name": "МО",
     "description": "Отыгровки для работников Армии",
     "author": "@quyzzi",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/md.json",
-    "download_count": 298
+    "download_count": 300
   },
   {
     "name": "Пра-во",
     "description": "Отыгровки для правительства.",
     "author": "Jake",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/Government.json",
-    "download_count": 199
+    "download_count": 200
   },
   {
     "name": "СТК",
     "description": "Отыгровки для Страховой компании. ",
     "author": "Jake ",
     "download_link": "https://github.com/osp54/MonetBinder/releases/download/sources-v1/insurance.json",
-    "download_count": 174
+    "download_count": 175
   },
   {
     "name": "Прокуратура",
